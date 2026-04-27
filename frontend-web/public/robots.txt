@@ -1,0 +1,46 @@
+# MediCore HMS — robots.txt
+# https://medicorehms.ae/robots.txt
+# Last updated: 2026-04-27
+
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /ar/
+
+# Block private/authenticated routes from indexing
+Disallow: /patient/
+Disallow: /doctor/
+Disallow: /admin/
+Disallow: /pharmacy/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /static/admin/
+
+# Block common bad bots & scrapers
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: SemrushBot
+Crawl-delay: 10
+
+User-agent: BLEXBot
+Disallow: /
+
+# Allow Googlebot Image full access to OG images
+User-agent: Googlebot-Image
+Allow: /og-image.png
+Allow: /screenshot-desktop.png
+
+# Sitemaps
+Sitemap: https://medicorehms.ae/sitemap.xml
+Sitemap: https://medicorehms.ae/sitemap-ar.xml
+
+# Crawl delay for polite bots
+Crawl-delay: 5

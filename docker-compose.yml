@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  # Django Backend (Port 8000)
+  backend:
+    build:
+      context: ./backend-django
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend-django:/app
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=dev-only-change-in-production
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py seed_hms &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # React Frontend (Port 5173)
+  frontend:
+    build:
+      context: ./frontend-web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend-web:/app
+      - /app/node_modules
+    environment:
+      - VITE_DJANGO_API_BASE=http://localhost:8000
+      - VITE_QUEUE_API_BASE=http://localhost:8000
+    command: npm run dev -- --host
+
+volumes:
+  sqlite_data:

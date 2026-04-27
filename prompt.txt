@@ -1,0 +1,44 @@
+Act as a Senior Full-Stack Software Architect and Healthcare Systems Expert. Build a robust, enterprise-grade Hospital Management System (HMS) using Python (FastAPI/Django) for the Backend and React.js (Tailwind CSS) for the Frontend. The system must be scalable, starting with the Middle East market (UAE/Saudi - RTL support) and expandable to the European market (GDPR compliant)."
+
+Core Modules & Functional Requirements:
+
+Patient Portal (Web/Mobile Responsive):
+
+Registration: Secure sign-up with Patient ID generation.
+
+Online Booking: Real-time appointment scheduling with doctor specialty filters.
+
+Payment Gateway: Integrated Stripe/PayPal for upfront consultation fees (Support for AED, SAR, and EUR).
+
+Medical Records: Digital access to prescriptions, lab reports, and visit history.
+
+Doctor Command Center:
+
+Dashboard: View daily appointment queue and patient vitals.
+
+Tele-Health Engine: Integrated Video/Audio calling feature for remote consultations (using WebRTC/Twilio).
+
+Digital Prescriptions: Generate e-prescriptions that sync instantly with the Pharmacy module.
+
+OPD & Reception Management:
+
+Token System: Live queue management for walk-in patients.
+
+Billing: Comprehensive invoicing for OPD visits, tests, and procedures.
+
+Pharmacy Management System:
+
+Inventory Control: Real-time stock tracking with low-stock alerts and expiry management.
+
+Integrated Billing: Automatic billing when a doctor prescribes medicine through the system.
+
+Market Localization & Technical Specs:
+
+Multi-Language: English/Arabic toggle with Right-to-Left (RTL) UI support for Middle East.
+
+Security: Role-Based Access Control (RBAC) for Admin, Doctor, Pharmacist, and Patient.
+
+Data Sovereignty: Database structure ready for HIPAA (US) and GDPR (Europe) compliance.
+
+Design Aesthetic:
+"Use a clean, clinical, and modern UI. Primary colors: Professional Teal and Deep Navy. Typography: Sans-serif (Inter/Montserrat). The UI must feel like a premium SaaS product, not an old-school legacy system."
