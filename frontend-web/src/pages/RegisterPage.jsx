@@ -43,7 +43,7 @@ export default function RegisterPage({ onLogin }) {
 
   return (
     <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 sm:p-10">
+      <div className="w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 lg:p-10">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-hmsTeal to-hmsMint flex items-center justify-center text-xl">⚕️</div>
           <div>

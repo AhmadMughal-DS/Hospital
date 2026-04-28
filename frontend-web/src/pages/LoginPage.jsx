@@ -38,9 +38,10 @@ export default function LoginPage({ onLogin }) {
   };
 
   return (
-    <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-0 rounded-3xl overflow-hidden shadow-2xl">
-        {/* Left panel */}
+    <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-0 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl">
+
+        {/* Left panel — hidden on mobile */}
         <div className="hidden lg:flex flex-col justify-between p-10 bg-gradient-to-br from-hmsNavy to-blue-900 text-white">
           <div>
             <div className="flex items-center gap-3 mb-12">
@@ -75,18 +76,31 @@ export default function LoginPage({ onLogin }) {
           </div>
         </div>
 
-        {/* Right panel */}
-        <div className="bg-white p-8 sm:p-10 flex flex-col justify-center">
-          <div className="flex items-center justify-between mb-8">
+        {/* Right panel — full width on mobile */}
+        <div className="bg-white p-6 sm:p-8 lg:p-10 flex flex-col justify-center">
+
+          {/* Mobile logo */}
+          <div className="flex lg:hidden items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-hmsTeal to-hmsMint flex items-center justify-center text-xl">⚕️</div>
             <div>
-              <h2 className="font-heading text-2xl font-black text-hmsNavy">
+              <div className="font-heading text-xl font-bold text-hmsNavy">MediCore HMS</div>
+              <div className="text-xs text-slate-400">Enterprise Healthcare Platform</div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-6 sm:mb-8">
+            <div>
+              <h2 className="font-heading text-xl sm:text-2xl font-black text-hmsNavy">
                 {isAr ? "تسجيل الدخول" : "Welcome Back"}
               </h2>
               <p className="text-sm text-slate-500 mt-1">
                 {isAr ? "أدخل بيانات حسابك" : "Sign in to your account"}
               </p>
             </div>
-            <button onClick={switchLang} className="text-xs font-semibold text-hmsTeal border border-hmsTeal/30 px-3 py-1.5 rounded-lg hover:bg-hmsTeal/5 transition">
+            <button
+              onClick={switchLang}
+              className="text-xs font-semibold text-hmsTeal border border-hmsTeal/30 px-3 py-1.5 rounded-lg hover:bg-hmsTeal/5 transition flex-shrink-0"
+            >
               {isAr ? "EN" : "عربي"}
             </button>
           </div>
@@ -114,7 +128,7 @@ export default function LoginPage({ onLogin }) {
             </Btn>
           </form>
 
-          <div className="mt-6 text-center text-sm text-slate-500">
+          <div className="mt-5 text-center text-sm text-slate-500">
             {isAr ? "ليس لديك حساب؟" : "Don't have an account?"}{" "}
             <Link to="/register" className="text-hmsTeal font-semibold hover:underline">
               {isAr ? "سجل الآن" : "Register"}
@@ -122,7 +136,7 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-slate-50 rounded-xl text-xs text-slate-600 space-y-1">
+          <div className="mt-5 p-3 sm:p-4 bg-slate-50 rounded-xl text-xs text-slate-600 space-y-1">
             <div className="font-bold text-slate-700 mb-2">🔑 Demo Credentials</div>
             <div><strong>Admin:</strong> admin@hms.ae / Admin@1234</div>
             <div><strong>Doctor:</strong> sara.khan@hms.ae / Doctor@1234</div>

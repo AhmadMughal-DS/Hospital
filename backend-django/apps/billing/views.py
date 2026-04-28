@@ -50,15 +50,30 @@ class MarkInvoicePaidView(APIView):
         except Invoice.DoesNotExist:
             return Response({"detail": "Invoice not found."}, status=404)
 
+        # Admin can pay any, patient can only pay their own
         if request.user.role not in (User.Role.ADMIN,) and invoice.patient != request.user:
             return Response({"detail": "Not authorized."}, status=403)
+
+        if invoice.status == Invoice.Status.PAID:
+            return Response({"detail": "Invoice is already paid."}, status=400)
 
         invoice.status = Invoice.Status.PAID
         invoice.amount_paid = invoice.total
         invoice.paid_at = timezone.now()
-        invoice.payment_method = request.data.get("payment_method", "CASH")
+        invoice.payment_method = request.data.get("payment_method", "CARD")
         invoice.payment_reference = request.data.get("payment_reference", "")
         invoice.save()
+
+        # If invoice has an associated appointment (via notes INV:...), confirm it
+        from apps.appointments.models import Appointment
+        try:
+            apt = Appointment.objects.filter(notes__contains=invoice.invoice_number).first()
+            if apt and apt.status == Appointment.Status.SCHEDULED:
+                apt.status = Appointment.Status.CONFIRMED
+                apt.save(update_fields=["status"])
+        except Exception:
+            pass
+
         return Response(InvoiceSerializer(invoice).data)
 
 

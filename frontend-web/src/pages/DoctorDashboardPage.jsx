@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
-import Sidebar from "../components/Sidebar";
-import { StatCard, Card, Badge, Btn, Input, Alert, Spinner, EmptyState } from "../components/ui";
-import { Calendar, Clock, Users, FileText, Video } from "lucide-react";
+import Sidebar, { MobileMenuBtn } from "../components/Sidebar";
+import { StatCard, Card, Badge, Btn, Input, Alert, Spinner, EmptyState, TableWrap } from "../components/ui";
+import { Video } from "lucide-react";
 import { useSEO } from "../hooks/useSEO";
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
@@ -12,6 +12,7 @@ export default function DoctorDashboardPage({ session, onLogout }) {
   const { i18n } = useTranslation();
   const isAr = i18n.language === "ar";
   const [active, setActive] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const headers = { Authorization: `Bearer ${session.access}` };
 
   const [todayAppts, setTodayAppts] = useState([]);
@@ -80,7 +81,7 @@ export default function DoctorDashboardPage({ session, onLogout }) {
   const sections = {
     overview: (
       <div className="space-y-6">
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <StatCard icon="📅" title={isAr ? "مواعيد اليوم" : "Today's Appointments"} value={todayAppts.length} color="teal" />
           <StatCard icon="⏳" title={isAr ? "في الانتظار" : "Waiting"} value={scheduled.length} color="amber" />
           <StatCard icon="✅" title={isAr ? "مكتملة" : "Completed"} value={completed} color="emerald" />
@@ -93,20 +94,20 @@ export default function DoctorDashboardPage({ session, onLogout }) {
           ) : (
             <div className="space-y-3">
               {todayAppts.map((apt, idx) => (
-                <div key={apt.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-hmsTeal/30 hover:bg-slate-50 transition">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-hmsTeal to-hmsMint flex items-center justify-center text-white font-bold">
+                <div key={apt.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-hmsTeal/30 hover:bg-slate-50 transition gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-hmsTeal to-hmsMint flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                       #{idx + 1}
                     </div>
-                    <div>
-                      <div className="font-semibold text-hmsNavy text-sm">{apt.patient_name}</div>
-                      <div className="text-xs text-slate-500">{apt.appointment_time?.slice(0, 5)} • {apt.chief_complaint || "Checkup"}</div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-hmsNavy text-sm truncate">{apt.patient_name}</div>
+                      <div className="text-xs text-slate-500 truncate">{apt.appointment_time?.slice(0, 5)} • {apt.chief_complaint || "Checkup"}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Badge status={apt.status} />
                     {apt.appointment_type === "TELE_HEALTH" && (
-                      <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="hidden sm:flex text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full items-center gap-1">
                         <Video size={10} /> Tele
                       </span>
                     )}
@@ -117,7 +118,7 @@ export default function DoctorDashboardPage({ session, onLogout }) {
                     )}
                     {apt.status === "IN_PROGRESS" && (
                       <Btn size="sm" variant="secondary" onClick={() => updateStatus(apt.id, "COMPLETED")}>
-                        {isAr ? "إنهاء" : "Complete"}
+                        {isAr ? "إنهاء" : "Done"}
                       </Btn>
                     )}
                   </div>
@@ -134,33 +135,37 @@ export default function DoctorDashboardPage({ session, onLogout }) {
         {todayAppts.length === 0 ? (
           <EmptyState icon="🔢" message={isAr ? "لا مرضى في الطابور" : "Queue is empty"} />
         ) : (
-          <table className="hms-table w-full text-sm">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>{isAr ? "المريض" : "Patient"}</th>
-                <th>{isAr ? "الوقت" : "Time"}</th>
-                <th>{isAr ? "النوع" : "Type"}</th>
-                <th>{isAr ? "الحالة" : "Status"}</th>
-                <th>{isAr ? "إجراء" : "Action"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {todayAppts.map((apt, i) => (
-                <tr key={apt.id}>
-                  <td className="font-bold text-hmsNavy">#{i + 1}</td>
-                  <td className="font-semibold">{apt.patient_name}</td>
-                  <td>{apt.appointment_time?.slice(0, 5)}</td>
-                  <td><span className={`text-xs font-semibold ${apt.appointment_type === "TELE_HEALTH" ? "text-blue-600" : "text-slate-600"}`}>{apt.appointment_type}</span></td>
-                  <td><Badge status={apt.status} /></td>
-                  <td className="flex gap-2">
-                    {apt.status === "SCHEDULED" && <Btn size="sm" onClick={() => updateStatus(apt.id, "IN_PROGRESS")}>Start</Btn>}
-                    {apt.status === "IN_PROGRESS" && <Btn size="sm" variant="secondary" onClick={() => updateStatus(apt.id, "COMPLETED")}>Done</Btn>}
-                  </td>
+          <TableWrap>
+            <table className="hms-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>{isAr ? "المريض" : "Patient"}</th>
+                  <th className="hidden sm:table-cell">{isAr ? "الوقت" : "Time"}</th>
+                  <th className="hidden md:table-cell">{isAr ? "النوع" : "Type"}</th>
+                  <th>{isAr ? "الحالة" : "Status"}</th>
+                  <th>{isAr ? "إجراء" : "Action"}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {todayAppts.map((apt, i) => (
+                  <tr key={apt.id}>
+                    <td className="font-bold text-hmsNavy">#{i + 1}</td>
+                    <td className="font-semibold whitespace-nowrap">{apt.patient_name}</td>
+                    <td className="hidden sm:table-cell whitespace-nowrap">{apt.appointment_time?.slice(0, 5)}</td>
+                    <td className="hidden md:table-cell"><span className={`text-xs font-semibold ${apt.appointment_type === "TELE_HEALTH" ? "text-blue-600" : "text-slate-600"}`}>{apt.appointment_type}</span></td>
+                    <td><Badge status={apt.status} /></td>
+                    <td className="whitespace-nowrap">
+                      <div className="flex gap-1.5">
+                        {apt.status === "SCHEDULED" && <Btn size="sm" onClick={() => updateStatus(apt.id, "IN_PROGRESS")}>Start</Btn>}
+                        {apt.status === "IN_PROGRESS" && <Btn size="sm" variant="secondary" onClick={() => updateStatus(apt.id, "COMPLETED")}>Done</Btn>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
         )}
       </Card>
     ),
@@ -170,36 +175,38 @@ export default function DoctorDashboardPage({ session, onLogout }) {
         {allAppts.length === 0 ? (
           <EmptyState icon="👥" message={isAr ? "لا مرضى حتى الآن" : "No patients yet"} />
         ) : (
-          <table className="hms-table w-full text-sm">
-            <thead>
-              <tr>
-                <th>{isAr ? "المريض" : "Patient"}</th>
-                <th>{isAr ? "الموعد" : "Appointment"}</th>
-                <th>{isAr ? "الحالة" : "Status"}</th>
-                <th>{isAr ? "الرسوم" : "Fee"}</th>
-                <th>{isAr ? "وصفة" : "Rx"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allAppts.map(apt => (
-                <tr key={apt.id}>
-                  <td className="font-semibold">{apt.patient_name}</td>
-                  <td>{apt.appointment_date} {apt.appointment_time?.slice(0, 5)}</td>
-                  <td><Badge status={apt.status} /></td>
-                  <td>{apt.currency} {apt.fee}</td>
-                  <td>
-                    {apt.prescription ? (
-                      <span className="text-xs text-emerald-600 font-semibold">✅ Issued</span>
-                    ) : apt.status === "COMPLETED" ? (
-                      <button className="text-xs text-hmsTeal font-semibold hover:underline" onClick={() => { setSelectedAppt(apt); setActive("prescriptions"); }}>
-                        {isAr ? "كتابة وصفة" : "Write Rx"}
-                      </button>
-                    ) : "—"}
-                  </td>
+          <TableWrap>
+            <table className="hms-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th>{isAr ? "المريض" : "Patient"}</th>
+                  <th className="hidden sm:table-cell">{isAr ? "الموعد" : "Appointment"}</th>
+                  <th>{isAr ? "الحالة" : "Status"}</th>
+                  <th className="hidden md:table-cell">{isAr ? "الرسوم" : "Fee"}</th>
+                  <th>{isAr ? "وصفة" : "Rx"}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {allAppts.map(apt => (
+                  <tr key={apt.id}>
+                    <td className="font-semibold whitespace-nowrap">{apt.patient_name}</td>
+                    <td className="hidden sm:table-cell whitespace-nowrap">{apt.appointment_date} {apt.appointment_time?.slice(0, 5)}</td>
+                    <td><Badge status={apt.status} /></td>
+                    <td className="hidden md:table-cell whitespace-nowrap">{apt.currency} {apt.fee}</td>
+                    <td>
+                      {apt.prescription ? (
+                        <span className="text-xs text-emerald-600 font-semibold whitespace-nowrap">✅ Issued</span>
+                      ) : apt.status === "COMPLETED" ? (
+                        <button className="text-xs text-hmsTeal font-semibold hover:underline whitespace-nowrap" onClick={() => { setSelectedAppt(apt); setActive("prescriptions"); }}>
+                          {isAr ? "كتابة وصفة" : "Write Rx"}
+                        </button>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
         )}
       </Card>
     ),
@@ -208,14 +215,14 @@ export default function DoctorDashboardPage({ session, onLogout }) {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Appointment picker */}
         <Card title={isAr ? "اختر الموعد" : "Select Appointment"}>
-          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          <div className="space-y-2 max-h-80 lg:max-h-[400px] overflow-y-auto">
             {allAppts.filter(a => a.status === "COMPLETED").map(apt => (
               <div
                 key={apt.id}
                 onClick={() => setSelectedAppt(apt)}
                 className={`p-3 rounded-xl border cursor-pointer transition ${selectedAppt?.id === apt.id ? "border-hmsTeal bg-hmsTeal/5" : "border-slate-100 hover:border-hmsTeal/30"}`}
               >
-                <div className="font-semibold text-sm text-hmsNavy">{apt.patient_name}</div>
+                <div className="font-semibold text-sm text-hmsNavy truncate">{apt.patient_name}</div>
                 <div className="text-xs text-slate-500">{apt.appointment_date}</div>
                 {apt.prescription && <span className="text-xs text-emerald-600">✅ Rx Issued</span>}
               </div>
@@ -256,13 +263,13 @@ export default function DoctorDashboardPage({ session, onLogout }) {
                 </div>
                 {rxItems.map((item, i) => (
                   <div key={i} className="border border-slate-200 rounded-xl p-3 mb-2 space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <input placeholder="Drug name" value={item.drug_name} onChange={e => setRxItem(i, "drug_name", e.target.value)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
-                      <input placeholder="Dosage (e.g. 500mg)" value={item.dosage} onChange={e => setRxItem(i, "dosage", e.target.value)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
-                      <input placeholder="Frequency" value={item.frequency} onChange={e => setRxItem(i, "frequency", e.target.value)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
-                      <input type="number" placeholder="Days" value={item.duration_days} onChange={e => setRxItem(i, "duration_days", Number(e.target.value))} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
-                      <input type="number" placeholder="Qty" value={item.quantity} onChange={e => setRxItem(i, "quantity", Number(e.target.value))} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" />
-                      <button onClick={() => removeRxItem(i)} className="text-rose-500 text-xs font-semibold hover:text-rose-700">✕ Remove</button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input placeholder="Drug name" value={item.drug_name} onChange={e => setRxItem(i, "drug_name", e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-full" />
+                      <input placeholder="Dosage (e.g. 500mg)" value={item.dosage} onChange={e => setRxItem(i, "dosage", e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-full" />
+                      <input placeholder="Frequency" value={item.frequency} onChange={e => setRxItem(i, "frequency", e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-full" />
+                      <input type="number" placeholder="Days" value={item.duration_days} onChange={e => setRxItem(i, "duration_days", Number(e.target.value))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-full" />
+                      <input type="number" placeholder="Qty" value={item.quantity} onChange={e => setRxItem(i, "quantity", Number(e.target.value))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm w-full" />
+                      <button onClick={() => removeRxItem(i)} className="text-rose-500 text-xs font-semibold hover:text-rose-700 text-left sm:text-center">✕ Remove</button>
                     </div>
                   </div>
                 ))}
@@ -281,24 +288,35 @@ export default function DoctorDashboardPage({ session, onLogout }) {
 
   return (
     <div className="relative z-10 flex min-h-screen">
-      <Sidebar role="DOCTOR" active={active} onSelect={setActive} user={session.user} onLogout={onLogout} />
-      <main className="flex-1 overflow-auto">
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="font-heading text-xl font-bold text-hmsNavy">
-              {isAr ? "لوحة الطبيب" : "Doctor Command Center"}
-            </h1>
-            <div className="flex items-center gap-3">
-              <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full font-semibold">
-                🟢 {isAr ? "متصل" : "Online"}
+      <Sidebar
+        role="DOCTOR"
+        active={active}
+        onSelect={setActive}
+        user={session.user}
+        onLogout={onLogout}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
+      />
+      <main className="flex-1 overflow-auto min-w-0">
+        <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center min-w-0">
+              <MobileMenuBtn onClick={() => setSidebarOpen(true)} />
+              <h1 className="font-heading text-lg sm:text-xl font-bold text-hmsNavy truncate">
+                {isAr ? "لوحة الطبيب" : "Doctor Command Center"}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-xs bg-emerald-50 text-emerald-700 px-2 sm:px-3 py-1 rounded-full font-semibold">
+                🟢 <span className="hidden sm:inline">{isAr ? "متصل" : "Online"}</span>
               </span>
-              <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-semibold">
-                📹 {isAr ? "استشارة مرئية متاحة" : "TeleHealth Ready"}
+              <span className="hidden sm:inline text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-semibold">
+                📹 {isAr ? "مرئية متاحة" : "TeleHealth Ready"}
               </span>
             </div>
           </div>
         </header>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {sections[active]}
         </div>
       </main>

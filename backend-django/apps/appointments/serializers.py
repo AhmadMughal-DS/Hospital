@@ -51,15 +51,25 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
         doctor = attrs["doctor"]
         date = attrs["appointment_date"]
         time = attrs["appointment_time"]
+
+        # Check slot conflict
         if Appointment.objects.filter(
             doctor=doctor,
             appointment_date=date,
             appointment_time=time,
         ).exclude(status=Appointment.Status.CANCELLED).exists():
             raise serializers.ValidationError("This slot is already booked.")
+
+        # Tele-health validation
+        if attrs.get("appointment_type") == Appointment.Type.TELE_HEALTH and not doctor.is_tele_health_enabled:
+            raise serializers.ValidationError("This doctor does not offer tele-health consultations.")
+
         return attrs
 
     def create(self, validated_data):
+        from apps.billing.models import Invoice, InvoiceItem
+        from decimal import Decimal
+
         doctor = validated_data["doctor"]
         currency = validated_data.get("currency", "AED")
         fee_map = {
@@ -67,6 +77,31 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
             "SAR": doctor.consultation_fee_sar,
             "EUR": doctor.consultation_fee_eur,
         }
-        validated_data["fee"] = fee_map.get(currency, doctor.consultation_fee_aed)
+        fee = fee_map.get(currency, doctor.consultation_fee_aed)
+        validated_data["fee"] = fee
         validated_data["patient"] = self.context["request"].user
-        return super().create(validated_data)
+
+        appointment = super().create(validated_data)
+
+        # Auto-create a PENDING invoice for this appointment
+        patient = self.context["request"].user
+        invoice = Invoice.objects.create(
+            patient=patient,
+            status=Invoice.Status.PENDING,
+            currency=currency,
+            subtotal=Decimal(str(fee)),
+            notes=f"Consultation — {appointment.appointment_ref}",
+        )
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            item_type=InvoiceItem.ItemType.CONSULTATION,
+            description=f"Consultation with Dr. {doctor.user.get_full_name()} on {appointment.appointment_date}",
+            quantity=1,
+            unit_price=Decimal(str(fee)),
+        )
+
+        # Store invoice id on appointment notes for reference
+        appointment.notes = f"INV:{invoice.invoice_number}"
+        appointment.save(update_fields=["notes"])
+
+        return appointment

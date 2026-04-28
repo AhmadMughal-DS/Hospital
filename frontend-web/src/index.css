@@ -16,11 +16,16 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   background: #f0f4f8;
   font-family: "Inter", sans-serif;
+  overflow-x: hidden;
 }
 
 /* RTL support */
@@ -37,31 +42,48 @@ body {
   box-shadow: 0 8px 32px rgba(16, 36, 62, 0.1);
 }
 
-/* Background orbs */
+/* Background orbs - smaller on mobile */
 .bg-orb-one,
 .bg-orb-two {
   position: fixed;
   border-radius: 9999px;
   filter: blur(80px);
-  opacity: 0.25;
+  opacity: 0.2;
   pointer-events: none;
   z-index: 0;
 }
 
 .bg-orb-one {
-  width: 500px;
-  height: 500px;
+  width: 300px;
+  height: 300px;
   background: radial-gradient(circle, #27B6A9, #0E8A8A);
-  top: -150px;
-  left: -100px;
+  top: -100px;
+  left: -80px;
 }
 
 .bg-orb-two {
-  width: 400px;
-  height: 400px;
+  width: 250px;
+  height: 250px;
   background: radial-gradient(circle, #10243E, #1a3559);
-  bottom: -100px;
-  right: -80px;
+  bottom: -80px;
+  right: -60px;
+}
+
+@media (min-width: 1024px) {
+  .bg-orb-one {
+    width: 500px;
+    height: 500px;
+    top: -150px;
+    left: -100px;
+    opacity: 0.25;
+  }
+  .bg-orb-two {
+    width: 400px;
+    height: 400px;
+    bottom: -100px;
+    right: -80px;
+    opacity: 0.25;
+  }
 }
 
 /* Sidebar */
@@ -131,11 +153,28 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* Table styling */
+.hms-table {
+  border-collapse: collapse;
+  width: 100%;
+}
 .hms-table thead { background: linear-gradient(90deg, #10243E, #1a3559); }
-.hms-table thead th { color: white; font-weight: 600; padding: 12px 16px; }
+.hms-table thead th {
+  color: white;
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+[dir="rtl"] .hms-table thead th { text-align: right; }
 .hms-table tbody tr { transition: background 0.15s; }
 .hms-table tbody tr:hover { background: #f8faff; }
-.hms-table tbody td { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
+.hms-table tbody td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.8125rem; }
+
+@media (min-width: 640px) {
+  .hms-table thead th { padding: 12px 16px; font-size: 0.8125rem; }
+  .hms-table tbody td { padding: 12px 16px; font-size: 0.875rem; }
+}
 
 /* Button styles */
 .btn-primary {
@@ -175,3 +214,11 @@ input:focus, select:focus, textarea:focus {
 /* Low stock warning */
 .low-stock { background: #fff7ed; border-left: 3px solid #f97316; }
 .expired { background: #fef2f2; border-left: 3px solid #ef4444; }
+
+[dir="rtl"] .low-stock { border-left: none; border-right: 3px solid #f97316; }
+[dir="rtl"] .expired { border-left: none; border-right: 3px solid #ef4444; }
+
+/* Prevent layout shift when sidebar opens */
+.sidebar-backdrop {
+  overscroll-behavior: contain;
+}

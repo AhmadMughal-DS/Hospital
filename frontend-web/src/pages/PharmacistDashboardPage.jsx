@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
-import Sidebar from "../components/Sidebar";
-import { StatCard, Card, Badge, Btn, Input, Select, Alert, EmptyState } from "../components/ui";
+import Sidebar, { MobileMenuBtn } from "../components/Sidebar";
+import { StatCard, Card, Badge, Btn, Input, Select, Alert, EmptyState, TableWrap } from "../components/ui";
 import { useSEO } from "../hooks/useSEO";
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
@@ -11,6 +11,7 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
   const { i18n } = useTranslation();
   const isAr = i18n.language === "ar";
   const [active, setActive] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const headers = { Authorization: `Bearer ${session.access}` };
 
   const [drugs, setDrugs] = useState([]);
@@ -71,23 +72,23 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
   const sections = {
     overview: (
       <div className="space-y-6">
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           <StatCard icon="💊" title={isAr ? "إجمالي الأدوية" : "Total Drugs"} value={drugs.length} color="teal" />
           <StatCard icon="⚠️" title={isAr ? "مخزون منخفض" : "Low Stock"} value={lowStock.length} color="amber" />
           <StatCard icon="❌" title={isAr ? "منتهية الصلاحية" : "Expired"} value={expiredDrugs.length} color="rose" />
-          <StatCard icon="📦" title={isAr ? "حركات اليوم" : "Today's Movements"} value={movements.slice(0, 10).length} color="navy" />
+          <StatCard icon="📦" title={isAr ? "حركات اليوم" : "Movements"} value={movements.slice(0, 10).length} color="navy" />
         </div>
 
         {lowStock.length > 0 && (
           <Card title={`⚠️ ${isAr ? "تنبيهات مخزون منخفض" : "Low Stock Alerts"}`}>
             <div className="space-y-2">
               {lowStock.map(d => (
-                <div key={d.id} className="low-stock flex items-center justify-between p-3 rounded-xl">
-                  <div>
-                    <div className="text-sm font-bold text-orange-800">{d.name}</div>
-                    <div className="text-xs text-orange-600">{d.sku} • {d.category}</div>
+                <div key={d.id} className="low-stock flex items-center justify-between p-3 rounded-xl gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-orange-800 truncate">{d.name}</div>
+                    <div className="text-xs text-orange-600 truncate">{d.sku} • {d.category}</div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <div className="text-lg font-black text-orange-600">{d.stock_quantity}</div>
                     <div className="text-xs text-orange-500">{isAr ? "متبقية" : "remaining"} / {d.low_stock_threshold} min</div>
                   </div>
@@ -100,9 +101,9 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
         {expiredDrugs.length > 0 && (
           <Card title={`❌ ${isAr ? "أدوية منتهية الصلاحية" : "Expired Drugs"}`}>
             {expiredDrugs.map(d => (
-              <div key={d.id} className="expired flex items-center justify-between p-3 rounded-xl mb-2">
-                <div className="text-sm font-bold text-red-800">{d.name}</div>
-                <div className="text-xs text-red-600">{isAr ? "انتهت في" : "Expired"}: {d.expiry_date}</div>
+              <div key={d.id} className="expired flex items-center justify-between p-3 rounded-xl mb-2 gap-2">
+                <div className="text-sm font-bold text-red-800 truncate">{d.name}</div>
+                <div className="text-xs text-red-600 flex-shrink-0">{isAr ? "انتهت في" : "Expired"}: {d.expiry_date}</div>
               </div>
             ))}
           </Card>
@@ -114,7 +115,7 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
           {showAddDrug && (
             <div className="mb-4 p-4 bg-slate-50 rounded-xl space-y-3 border border-slate-200">
               <h4 className="font-semibold text-hmsNavy text-sm">{isAr ? "إضافة دواء جديد" : "Add New Drug"}</h4>
-              <div className="grid sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input label={isAr ? "اسم الدواء" : "Drug Name"} value={drugForm.name} onChange={e => setDrugForm(p => ({ ...p, name: e.target.value }))} />
                 <Input label="SKU" value={drugForm.sku} onChange={e => setDrugForm(p => ({ ...p, sku: e.target.value }))} />
                 <Input label={isAr ? "الفئة" : "Category"} value={drugForm.category} onChange={e => setDrugForm(p => ({ ...p, category: e.target.value }))} />
@@ -128,34 +129,36 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
             </div>
           )}
           {drugs.length === 0 ? <EmptyState icon="💊" message="No drugs in inventory" /> : (
-            <table className="hms-table w-full text-sm">
-              <thead>
-                <tr>
-                  <th>{isAr ? "الدواء" : "Drug"}</th>
-                  <th>SKU</th>
-                  <th>{isAr ? "المخزون" : "Stock"}</th>
-                  <th>{isAr ? "السعر" : "Price"}</th>
-                  <th>{isAr ? "الانتهاء" : "Expiry"}</th>
-                  <th>{isAr ? "الحالة" : "Status"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {drugs.map(d => (
-                  <tr key={d.id} className={d.is_expired ? "expired" : d.is_low_stock ? "low-stock" : ""}>
-                    <td className="font-semibold">{d.name}</td>
-                    <td className="font-mono text-xs">{d.sku}</td>
-                    <td className={`font-bold ${d.is_low_stock ? "text-orange-600" : "text-emerald-700"}`}>{d.stock_quantity}</td>
-                    <td>AED {d.unit_price_aed}</td>
-                    <td>{d.expiry_date}</td>
-                    <td>
-                      {d.is_expired ? <span className="text-xs font-bold text-red-600">❌ Expired</span> :
-                        d.is_low_stock ? <span className="text-xs font-bold text-orange-600">⚠️ Low</span> :
-                          <span className="text-xs font-bold text-emerald-600">✅ OK</span>}
-                    </td>
+            <TableWrap>
+              <table className="hms-table w-full text-sm">
+                <thead>
+                  <tr>
+                    <th>{isAr ? "الدواء" : "Drug"}</th>
+                    <th className="hidden sm:table-cell">SKU</th>
+                    <th>{isAr ? "المخزون" : "Stock"}</th>
+                    <th className="hidden sm:table-cell">{isAr ? "السعر" : "Price"}</th>
+                    <th className="hidden md:table-cell">{isAr ? "الانتهاء" : "Expiry"}</th>
+                    <th>{isAr ? "الحالة" : "Status"}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {drugs.map(d => (
+                    <tr key={d.id} className={d.is_expired ? "expired" : d.is_low_stock ? "low-stock" : ""}>
+                      <td className="font-semibold whitespace-nowrap">{d.name}</td>
+                      <td className="font-mono text-xs hidden sm:table-cell">{d.sku}</td>
+                      <td className={`font-bold whitespace-nowrap ${d.is_low_stock ? "text-orange-600" : "text-emerald-700"}`}>{d.stock_quantity}</td>
+                      <td className="hidden sm:table-cell whitespace-nowrap">AED {d.unit_price_aed}</td>
+                      <td className="hidden md:table-cell">{d.expiry_date}</td>
+                      <td>
+                        {d.is_expired ? <span className="text-xs font-bold text-red-600 whitespace-nowrap">❌ Expired</span> :
+                          d.is_low_stock ? <span className="text-xs font-bold text-orange-600 whitespace-nowrap">⚠️ Low</span> :
+                            <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">✅ OK</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
           )}
         </Card>
       </div>
@@ -187,32 +190,34 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
 
         <Card title={isAr ? "سجل الحركات" : "Movement History"} className="lg:col-span-2">
           {movements.length === 0 ? <EmptyState icon="📦" message="No movements recorded" /> : (
-            <table className="hms-table w-full text-sm">
-              <thead>
-                <tr>
-                  <th>{isAr ? "الدواء" : "Drug"}</th>
-                  <th>{isAr ? "النوع" : "Type"}</th>
-                  <th>{isAr ? "الكمية" : "Qty"}</th>
-                  <th>{isAr ? "المرجع" : "Ref"}</th>
-                  <th>{isAr ? "التاريخ" : "Date"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movements.slice(0, 20).map(m => (
-                  <tr key={m.id}>
-                    <td className="font-semibold">{m.drug_name}</td>
-                    <td>
-                      <span className={`text-xs font-semibold ${m.movement_type === "IN" ? "text-emerald-600" : m.movement_type === "OUT" ? "text-rose-600" : "text-amber-600"}`}>
-                        {m.movement_type}
-                      </span>
-                    </td>
-                    <td className="font-bold">{m.quantity}</td>
-                    <td className="text-slate-500 text-xs">{m.reference || "—"}</td>
-                    <td className="text-xs text-slate-500">{m.created_at?.slice(0, 16)}</td>
+            <TableWrap>
+              <table className="hms-table w-full text-sm">
+                <thead>
+                  <tr>
+                    <th>{isAr ? "الدواء" : "Drug"}</th>
+                    <th>{isAr ? "النوع" : "Type"}</th>
+                    <th>{isAr ? "الكمية" : "Qty"}</th>
+                    <th className="hidden sm:table-cell">{isAr ? "المرجع" : "Ref"}</th>
+                    <th className="hidden md:table-cell">{isAr ? "التاريخ" : "Date"}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {movements.slice(0, 20).map(m => (
+                    <tr key={m.id}>
+                      <td className="font-semibold whitespace-nowrap">{m.drug_name}</td>
+                      <td>
+                        <span className={`text-xs font-semibold whitespace-nowrap ${m.movement_type === "IN" ? "text-emerald-600" : m.movement_type === "OUT" ? "text-rose-600" : "text-amber-600"}`}>
+                          {m.movement_type}
+                        </span>
+                      </td>
+                      <td className="font-bold">{m.quantity}</td>
+                      <td className="text-slate-500 text-xs hidden sm:table-cell">{m.reference || "—"}</td>
+                      <td className="text-xs text-slate-500 hidden md:table-cell whitespace-nowrap">{m.created_at?.slice(0, 16)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableWrap>
           )}
         </Card>
       </div>
@@ -230,13 +235,13 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
           {lowStock.length === 0 ? <EmptyState icon="✅" message={isAr ? "لا توجد تحذيرات" : "No low stock items"} /> : (
             <div className="space-y-3">
               {lowStock.map(d => (
-                <div key={d.id} className="low-stock flex items-center justify-between p-4 rounded-xl">
-                  <div>
-                    <div className="font-bold text-orange-800">{d.name}</div>
-                    <div className="text-sm text-orange-600">{d.sku} • {d.category}</div>
+                <div key={d.id} className="low-stock flex items-center justify-between p-3 sm:p-4 rounded-xl gap-2">
+                  <div className="min-w-0">
+                    <div className="font-bold text-orange-800 truncate">{d.name}</div>
+                    <div className="text-sm text-orange-600 truncate">{d.sku} • {d.category}</div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-black text-orange-600">{d.stock_quantity}</div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-xl sm:text-2xl font-black text-orange-600">{d.stock_quantity}</div>
                     <div className="text-xs text-orange-500">/ {d.low_stock_threshold} {isAr ? "الحد الأدنى" : "minimum"}</div>
                   </div>
                 </div>
@@ -248,9 +253,9 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
           {expiredDrugs.length === 0 ? <EmptyState icon="✅" message={isAr ? "لا توجد أدوية منتهية" : "No expired drugs"} /> : (
             <div className="space-y-2">
               {expiredDrugs.map(d => (
-                <div key={d.id} className="expired flex items-center justify-between p-3 rounded-xl">
-                  <div className="text-sm font-bold text-red-800">{d.name}</div>
-                  <div className="text-xs text-red-600">Expired: {d.expiry_date}</div>
+                <div key={d.id} className="expired flex items-center justify-between p-3 rounded-xl gap-2">
+                  <div className="text-sm font-bold text-red-800 truncate">{d.name}</div>
+                  <div className="text-xs text-red-600 flex-shrink-0">Expired: {d.expiry_date}</div>
                 </div>
               ))}
             </div>
@@ -262,23 +267,34 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
 
   return (
     <div className="relative z-10 flex min-h-screen">
-      <Sidebar role="PHARMACIST" active={active} onSelect={setActive} user={session.user} onLogout={onLogout} />
-      <main className="flex-1 overflow-auto">
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-slate-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="font-heading text-xl font-bold text-hmsNavy">
-              {isAr ? "لوحة الصيدلية" : "Pharmacy Management System"}
-            </h1>
-            <div className="flex gap-2">
+      <Sidebar
+        role="PHARMACIST"
+        active={active}
+        onSelect={setActive}
+        user={session.user}
+        onLogout={onLogout}
+        mobileOpen={sidebarOpen}
+        onMobileClose={() => setSidebarOpen(false)}
+      />
+      <main className="flex-1 overflow-auto min-w-0">
+        <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center min-w-0">
+              <MobileMenuBtn onClick={() => setSidebarOpen(true)} />
+              <h1 className="font-heading text-lg sm:text-xl font-bold text-hmsNavy truncate">
+                {isAr ? "لوحة الصيدلية" : "Pharmacy Management"}
+              </h1>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
               {lowStock.length > 0 && (
-                <span className="text-xs bg-orange-50 text-orange-700 px-3 py-1 rounded-full font-semibold animate-pulse">
-                  ⚠️ {lowStock.length} {isAr ? "تنبيه" : "alerts"}
+                <span className="text-xs bg-orange-50 text-orange-700 px-2 sm:px-3 py-1 rounded-full font-semibold animate-pulse">
+                  ⚠️ {lowStock.length} <span className="hidden sm:inline">{isAr ? "تنبيه" : "alerts"}</span>
                 </span>
               )}
             </div>
           </div>
         </header>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {sections[active]}
         </div>
       </main>
