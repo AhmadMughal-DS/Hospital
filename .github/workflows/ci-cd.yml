@@ -373,7 +373,7 @@ jobs:
               printf 'SECRET_KEY=%s\n'             'django-hms-super-secret-key-2026-medicore'
               printf 'DB_NAME=hms_db\n'
               printf 'DB_USER=hms_user\n'
-              printf 'DB_PASSWORD=%s\n'            '${{ secrets.DB_PASSWORD || "hms_pass" }}'
+              printf 'DB_PASSWORD=hms_pass\n'
               printf 'ALLOWED_HOSTS=%s\n'          '${{ secrets.ALLOWED_HOSTS }}'
               printf 'CORS_ALLOWED_ORIGINS=%s\n'   '${{ secrets.CORS_ALLOWED_ORIGINS }}'
               printf 'EMAIL_HOST=smtp.gmail.com\n'
