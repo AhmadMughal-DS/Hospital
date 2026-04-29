@@ -29,8 +29,8 @@ export default function RegisterPage({ onLogin }) {
         password: form.password,
         language_preference: isAr ? "AR" : "EN",
       });
-      setSuccess(`Account created! Patient ID: ${data.user.patient_id}`);
-      setTimeout(() => { onLogin(data); navigate("/patient"); }, 1500);
+      setSuccess(`Account created successfully! Redirecting to Sign In...`);
+      setTimeout(() => { navigate("/login"); }, 1800);
     } catch (err) {
       const msg = err?.response?.data;
       setError(typeof msg === "string" ? msg : JSON.stringify(msg));

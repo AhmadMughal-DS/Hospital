@@ -118,3 +118,104 @@ class DoctorAvailableSlotsView(APIView):
             "is_tele_health_enabled": doctor.is_tele_health_enabled,
             "slots": available_slots,
         })
+
+
+# ── Admin Doctor CRUD ─────────────────────────────────────────────────────────
+
+class DoctorAdminCreateView(APIView):
+    """
+    POST /api/v1/doctors/admin/create/
+    Admin creates a new doctor user + profile in one call.
+    Body: { first_name, last_name, email, specialty_id, license_number,
+            consultation_fee_aed, available_from, available_to,
+            slot_duration_minutes, is_tele_health_enabled,
+            telehealth_discount_percent, bio }
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        from apps.accounts.models import User
+        from django.db import transaction
+
+        data = request.data
+        email = data.get("email", "").strip().lower()
+        first_name = data.get("first_name", "").strip()
+        last_name = data.get("last_name", "").strip()
+
+        if not email or not first_name:
+            return Response({"detail": "email and first_name are required."}, status=400)
+
+        if User.objects.filter(email=email).exists():
+            return Response({"detail": "A user with this email already exists."}, status=400)
+
+        try:
+            specialty_id = int(data.get("specialty_id") or 0)
+        except (ValueError, TypeError):
+            specialty_id = None
+
+        try:
+            with transaction.atomic():
+                # Create user account
+                user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    password=data.get("password", "Doctor@1234"),
+                    first_name=first_name,
+                    last_name=last_name,
+                    role=User.Role.DOCTOR,
+                )
+
+                # Create doctor profile
+                profile_data = {
+                    "user": user,
+                    "license_number": data.get("license_number", f"LIC-{user.id:05d}"),
+                    "bio": data.get("bio", ""),
+                    "consultation_fee_aed": data.get("consultation_fee_aed", 200),
+                    "consultation_fee_sar": data.get("consultation_fee_sar", 200),
+                    "consultation_fee_eur": data.get("consultation_fee_eur", 50),
+                    "available_from": data.get("available_from", "08:00"),
+                    "available_to": data.get("available_to", "17:00"),
+                    "slot_duration_minutes": data.get("slot_duration_minutes", 30),
+                    "is_tele_health_enabled": data.get("is_tele_health_enabled", True),
+                    "telehealth_discount_percent": data.get("telehealth_discount_percent", 20),
+                }
+                if specialty_id:
+                    from .models import Specialty
+                    try:
+                        profile_data["specialty"] = Specialty.objects.get(pk=specialty_id)
+                    except Specialty.DoesNotExist:
+                        pass
+
+                profile = DoctorProfile.objects.create(**profile_data)
+
+        except Exception as e:
+            return Response({"detail": str(e)}, status=400)
+
+        return Response(DoctorProfileSerializer(profile).data, status=201)
+
+
+class DoctorAdminDeleteView(APIView):
+    """
+    DELETE /api/v1/doctors/admin/<pk>/delete/
+    Soft-deletes the doctor (is_active=False) and deactivates their user account.
+    """
+    permission_classes = [IsAdminUser]
+
+    def delete(self, request, pk):
+        try:
+            profile = DoctorProfile.objects.get(pk=pk)
+        except DoctorProfile.DoesNotExist:
+            return Response({"detail": "Doctor not found."}, status=404)
+
+        profile.is_active = False
+        profile.save(update_fields=["is_active"])
+        profile.user.is_active = False
+        profile.user.save(update_fields=["is_active"])
+        return Response({"detail": "Doctor deactivated successfully."}, status=200)
+
+
+class AllDoctorsAdminView(generics.ListAPIView):
+    """Admin view that includes inactive doctors too."""
+    queryset = DoctorProfile.objects.select_related("user", "specialty").order_by("-created_at")
+    serializer_class = DoctorProfileSerializer
+    permission_classes = [IsAdminUser]

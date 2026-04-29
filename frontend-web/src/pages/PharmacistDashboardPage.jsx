@@ -224,9 +224,7 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
     ),
 
     prescriptions: (
-      <Card title={isAr ? "وصفات للصرف" : "Prescriptions to Dispense"}>
-        <EmptyState icon="💊" message={isAr ? "عرض الوصفات الطبية — قريباً" : "Prescription dispensing view — coming soon"} />
-      </Card>
+      <PrescriptionDispense headers={headers} drugs={drugs} onRefresh={loadAll}/>
     ),
 
     alerts: (
@@ -298,6 +296,151 @@ export default function PharmacistDashboardPage({ session, onLogout }) {
           {sections[active]}
         </div>
       </main>
+    </div>
+  );
+}
+
+// ── Prescription Dispensing Component ────────────────────────────────────────
+function PrescriptionDispense({ headers, drugs, onRefresh }) {
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [dispensed, setDispensed] = useState({}); // {itemId: qty}
+  const [msg, setMsg] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
+
+  useEffect(() => {
+    axios.get(`${API}/api/v1/appointments/prescriptions/`, { headers })
+      .then(r => setPrescriptions(r.data.results || r.data))
+      .catch(() => {});
+  }, []);
+
+  const matchedDrug = (drugName) =>
+    drugs.find(d => d.name.toLowerCase().includes(drugName.toLowerCase()));
+
+  const calcQty = (item) => {
+    const parts = item.frequency?.toLowerCase() || "";
+    let timesPerDay = 1;
+    if (parts.includes("twice") || parts.includes("2")) timesPerDay = 2;
+    if (parts.includes("three") || parts.includes("3")) timesPerDay = 3;
+    if (parts.includes("four") || parts.includes("4")) timesPerDay = 4;
+    return (item.duration_days || 7) * timesPerDay;
+  };
+
+  const totalBill = (rx) => {
+    if (!rx?.items) return 0;
+    return rx.items.reduce((sum, item) => {
+      const drug = matchedDrug(item.drug_name);
+      const qty = dispensed[item.id] ?? calcQty(item);
+      return sum + (drug ? parseFloat(drug.unit_price_aed) * qty : 0);
+    }, 0);
+  };
+
+  const dispense = async () => {
+    if (!selected) return;
+    setLoading(true); setMsg(null);
+    try {
+      for (const item of selected.items) {
+        const drug = matchedDrug(item.drug_name);
+        if (!drug) continue;
+        const qty = dispensed[item.id] ?? calcQty(item);
+        await axios.post(`${API}/api/v1/pharmacy/stock-movements/`, {
+          drug: drug.id, movement_type: "OUT", quantity: qty,
+          reference: `RX-${selected.id}`,
+          notes: `Dispensed for ${selected.appointment?.patient_name || "patient"}: ${item.drug_name} ${item.dosage}`,
+        }, { headers });
+      }
+      setMsg({ ok: true, text: `✅ Dispensed successfully! Bill: AED ${totalBill(selected).toFixed(2)}` });
+      setSelected(null); setDispensed({});
+      onRefresh();
+      setPrescriptions(p => p.filter(rx => rx.id !== selected.id));
+    } catch { setMsg({ ok: false, text: "Error during dispensing" }); }
+    finally { setLoading(false); }
+  };
+
+  const filtered = prescriptions.filter(rx =>
+    (rx.appointment?.patient_name || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-5">
+      {/* Prescription list */}
+      <div className="lg:col-span-2 space-y-3">
+        <input placeholder="🔍 Search patient..." value={search} onChange={e=>setSearch(e.target.value)}
+          className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm"/>
+        {filtered.length === 0 && (
+          <div className="text-center py-10 text-slate-400"><div className="text-4xl mb-2">💊</div><p className="text-sm">No prescriptions pending</p></div>
+        )}
+        {filtered.map(rx => (
+          <div key={rx.id} onClick={() => { setSelected(rx); setDispensed({}); setMsg(null); }}
+            className={`p-4 rounded-2xl border-2 cursor-pointer transition ${selected?.id===rx.id?"border-hmsTeal bg-hmsTeal/5":"border-slate-100 hover:border-hmsTeal/30"}`}>
+            <div className="font-semibold text-hmsNavy">{rx.appointment?.patient_name || "Patient"}</div>
+            <div className="text-xs text-slate-500 mt-1">{rx.appointment?.appointment_date} • {rx.items?.length} item(s)</div>
+            {rx.is_dispensed && <span className="text-xs text-emerald-600 font-semibold">✅ Dispensed</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* Dispense panel */}
+      <div className="lg:col-span-3">
+        {!selected ? (
+          <div className="text-center py-20 text-slate-400"><div className="text-5xl mb-3">👈</div><p>Select a prescription to dispense</p></div>
+        ) : (
+          <div className="space-y-4">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+              <div className="font-bold text-hmsNavy">{selected.appointment?.patient_name}</div>
+              <div className="text-sm text-slate-500">{selected.appointment?.appointment_date} • {selected.notes}</div>
+            </div>
+
+            {/* Medicine calculator */}
+            <div className="space-y-3">
+              {selected.items?.map(item => {
+                const drug = matchedDrug(item.drug_name);
+                const suggestedQty = calcQty(item);
+                const qty = dispensed[item.id] ?? suggestedQty;
+                const price = drug ? parseFloat(drug.unit_price_aed) * qty : 0;
+                return (
+                  <div key={item.id} className={`p-4 rounded-2xl border-2 ${drug?"border-slate-200":"border-red-100 bg-red-50/30"}`}>
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div>
+                        <div className="font-semibold text-hmsNavy">{item.drug_name}</div>
+                        <div className="text-xs text-slate-500">{item.dosage} • {item.frequency} • {item.duration_days} days</div>
+                        {drug
+                          ? <div className="text-xs text-emerald-600 mt-1">✅ Matched: {drug.name} (Stock: {drug.stock_quantity}) • AED {drug.unit_price_aed}/{drug.unit}</div>
+                          : <div className="text-xs text-red-500 mt-1">⚠️ No match found in inventory</div>
+                        }
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500 mb-1">Qty to dispense</div>
+                        <input type="number" min="0" value={qty}
+                          onChange={e => setDispensed(p=>({...p,[item.id]:parseInt(e.target.value)||0}))}
+                          className="w-20 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center font-bold"/>
+                        {drug && <div className="text-xs font-semibold text-hmsTeal mt-1">AED {price.toFixed(2)}</div>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Total bill */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-hmsTeal/10 to-hmsMint/10 rounded-2xl border border-hmsTeal/20">
+              <div>
+                <div className="text-xs text-slate-500">Total Patient Bill</div>
+                <div className="text-2xl font-black text-hmsNavy">AED {totalBill(selected).toFixed(2)}</div>
+              </div>
+              <button onClick={dispense} disabled={loading}
+                className="bg-hmsTeal hover:bg-hmsTeal/90 text-white font-bold px-6 py-3 rounded-xl transition disabled:opacity-50">
+                {loading ? "Dispensing..." : "💊 Dispense All"}
+              </button>
+            </div>
+
+            {msg && <div className={`p-3 rounded-xl text-sm font-semibold ${msg.ok?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-600"}`}>{msg.text}</div>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

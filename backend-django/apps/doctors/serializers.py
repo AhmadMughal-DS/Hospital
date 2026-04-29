@@ -30,7 +30,8 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
             "license_number", "bio", "bio_ar",
             "consultation_fee_aed", "consultation_fee_sar", "consultation_fee_eur",
             "available_from", "available_to", "slot_duration_minutes",
-            "is_tele_health_enabled", "is_active", "created_at",
+            "is_tele_health_enabled", "telehealth_discount_percent",
+            "is_active", "created_at",
         ]
         read_only_fields = ["id", "created_at"]
 

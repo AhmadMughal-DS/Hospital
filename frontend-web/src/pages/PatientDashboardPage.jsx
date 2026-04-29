@@ -3,9 +3,11 @@ import axios from "axios";
 import { useTranslation } from "react-i18next";
 import Sidebar, { MobileMenuBtn } from "../components/Sidebar";
 import { StatCard, Card, Badge, Btn, Input, Select, Alert, Spinner, EmptyState, TableWrap } from "../components/ui";
-import { Calendar, FileText } from "lucide-react";
+import { Calendar, FileText, Video } from "lucide-react";
 import { useSEO } from "../hooks/useSEO";
 import BookingWizard from "../components/BookingWizard";
+import VideoCallModal from "../components/VideoCallModal";
+import { useAppointmentAlerts, getCallStatus } from "../hooks/useAppointmentAlerts";
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
 const QUEUE_API = import.meta.env.VITE_QUEUE_API_BASE || "http://localhost:8000";
@@ -35,6 +37,13 @@ export default function PatientDashboardPage({ session, onLogout }) {
   const [specialtyFilter, setSpecialtyFilter] = useState("");
 
   const [loading, setLoading] = useState(false);
+
+  // Video call state
+  const [videoCall, setVideoCall] = useState(null);
+
+  // Appointment alerts — browser notification + countdown
+  const openCall = (apt) => setVideoCall({ roomId: apt.tele_room_id, displayName: session.user.first_name || session.user.email });
+  useAppointmentAlerts(appointments, openCall);
 
   const loadAppointments = async () => {
     try {
@@ -120,7 +129,10 @@ export default function PatientDashboardPage({ session, onLogout }) {
                       <div className="text-xs text-slate-500 truncate">{apt.appointment_date} • {apt.appointment_time?.slice(0, 5)}</div>
                     </div>
                   </div>
-                  <Badge status={apt.status} />
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Badge status={apt.status} />
+                    <JoinCallBtn apt={apt} onJoin={openCall} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -296,6 +308,15 @@ export default function PatientDashboardPage({ session, onLogout }) {
 
   return (
     <div className="relative z-10 flex min-h-screen">
+      {/* Video Call Modal */}
+      {videoCall && (
+        <VideoCallModal
+          roomId={videoCall.roomId}
+          displayName={videoCall.displayName}
+          role="PATIENT"
+          onClose={() => setVideoCall(null)}
+        />
+      )}
       <Sidebar
         role="PATIENT"
         active={active}
@@ -320,5 +341,37 @@ export default function PatientDashboardPage({ session, onLogout }) {
         </div>
       </main>
     </div>
+  );
+}
+
+// ── Smart time-aware Join Call Button ─────────────────────────────────────────
+function JoinCallBtn({ apt, onJoin }) {
+  const [, forceUpdate] = useState(0);
+  // Re-render every 30 seconds so countdown stays fresh
+  useEffect(() => {
+    const id = setInterval(() => forceUpdate(n => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const cs = getCallStatus(apt);
+  if (cs.state === "na") return null;
+
+  const styles = {
+    upcoming: "bg-slate-100 text-slate-500 cursor-not-allowed",
+    soon:     "bg-amber-500 hover:bg-amber-600 text-white animate-pulse",
+    now:      "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 animate-pulse",
+    ended:    "bg-slate-200 text-slate-400 cursor-not-allowed",
+  };
+
+  return (
+    <button
+      disabled={!cs.canJoin}
+      onClick={() => cs.canJoin && onJoin(apt)}
+      title={cs.state === "upcoming" ? `Video call unlocks 10 min before appointment` : "Join TeleHealth video call"}
+      className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition ${styles[cs.state]}`}
+    >
+      <Video size={11} />
+      {cs.label}
+    </button>
   );
 }

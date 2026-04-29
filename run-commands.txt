@@ -1,0 +1,103 @@
+================================================================
+  HMS PROJECT - DEV MODE COMMANDS
+  (Database in Docker, Frontend & Backend locally)
+================================================================
+
+----------------------------------------------------------------
+STEP 1: Sirf Database Docker mein run karo
+----------------------------------------------------------------
+
+  docker run -d ^
+    --name hms-db ^
+    -e POSTGRES_DB=hms_db ^
+    -e POSTGRES_USER=hms_user ^
+    -e POSTGRES_PASSWORD=hms_pass ^
+    -p 5432:5432 ^
+    postgres:16-alpine
+
+  -- Check karo DB chal raha hai:
+  docker ps
+
+  -- DB band karna ho to:
+  docker stop hms-db
+
+  -- Dobara start karna ho to:
+  docker start hms-db
+
+  -- DB delete karna ho to:
+  docker rm -f hms-db
+
+
+----------------------------------------------------------------
+STEP 2: Backend (Django) locally run karo
+----------------------------------------------------------------
+
+  -- Terminal 1 mein yeh commands chalaao:
+
+  cd E:\Ahmad-Company\Hospital\backend-django
+
+  -- (.env file already hai — kuch set karne ki zaroorat nahi!)
+
+  -- Virtual environment banao (sirf pehli baar):
+  python -m venv .venv
+
+  -- Activate karo:
+  .venv\Scripts\activate
+
+  -- Dependencies install karo (sirf pehli baar):
+  pip install -r requirements.txt
+
+  -- Migrations run karo:
+  python manage.py migrate --noinput
+
+  -- Demo data seed karo (sirf pehli baar):
+  python manage.py seed_hms
+
+  -- Server chalaao:
+  python manage.py runserver 0.0.0.0:8000
+
+  --> Backend chal raha hai: http://localhost:8000
+
+
+----------------------------------------------------------------
+STEP 3: Frontend (React/Vite) locally run karo
+----------------------------------------------------------------
+
+  -- Terminal 2 mein yeh commands chalaao:
+
+  cd E:\Ahmad-Company\Hospital\frontend-web
+
+  -- Dependencies install karo (sirf pehli baar):
+  npm install
+
+  -- Dev server chalaao:
+  npm run dev
+
+  --> Frontend chal raha hai: http://localhost:5173
+
+
+----------------------------------------------------------------
+URLS
+----------------------------------------------------------------
+
+  Frontend  :  http://localhost:5173
+  Backend   :  http://localhost:8000
+  DB        :  localhost:5432
+
+----------------------------------------------------------------
+DEMO LOGIN
+----------------------------------------------------------------
+
+  Admin       admin@hms.ae       / Admin@1234
+  Doctor      sara.khan@hms.ae   / Doctor@1234
+  Pharmacist  pharma@hms.ae      / Pharma@1234
+  Patient     patient@hms.ae     / Patient@1234
+
+----------------------------------------------------------------
+PROJECT FINALIZE HO JAY TO (Docker Compose se sab chalao)
+----------------------------------------------------------------
+
+  cd E:\Ahmad-Company\Hospital
+  docker-compose up --build -d
+
+================================================================

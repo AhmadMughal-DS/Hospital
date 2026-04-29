@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { Alert, Input, Btn } from "../components/ui";
@@ -8,6 +8,7 @@ import { useSEO } from "../hooks/useSEO";
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
 
 export default function LoginPage({ onLogin }) {
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   useSEO();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -23,6 +24,12 @@ export default function LoginPage({ onLogin }) {
     try {
       const { data } = await axios.post(`${API}/api/v1/auth/login`, form);
       onLogin(data);
+      // Navigate to the correct dashboard based on role
+      const role = data?.user?.role;
+      if (role === "DOCTOR") navigate("/doctor");
+      else if (role === "ADMIN") navigate("/admin");
+      else if (role === "PHARMACIST") navigate("/pharmacy");
+      else navigate("/patient");
     } catch (err) {
       setError(err?.response?.data?.detail || err?.response?.data?.non_field_errors?.[0] || "Login failed. Check credentials.");
     } finally {
@@ -118,6 +125,7 @@ export default function LoginPage({ onLogin }) {
               label={isAr ? "كلمة المرور" : "Password"}
               type="password"
               required
+              autoComplete="current-password"
               value={form.password}
               onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
               placeholder="••••••••"

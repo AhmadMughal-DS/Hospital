@@ -5,6 +5,8 @@ import Sidebar, { MobileMenuBtn } from "../components/Sidebar";
 import { StatCard, Card, Badge, Btn, Input, Alert, Spinner, EmptyState, TableWrap } from "../components/ui";
 import { Video } from "lucide-react";
 import { useSEO } from "../hooks/useSEO";
+import VideoCallModal from "../components/VideoCallModal";
+import { useAppointmentAlerts, getCallStatus } from "../hooks/useAppointmentAlerts";
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
 
@@ -25,6 +27,13 @@ export default function DoctorDashboardPage({ session, onLogout }) {
   const [rxItems, setRxItems] = useState([{ drug_name: "", dosage: "", frequency: "Twice daily", duration_days: 7, quantity: 1, instructions: "" }]);
   const [rxResult, setRxResult] = useState(null);
   const [rxLoading, setRxLoading] = useState(false);
+
+  // Video call state
+  const [videoCall, setVideoCall] = useState(null); // { roomId, displayName }
+
+  // Appointment alerts — browser notification + countdown
+  const openCall = (apt) => setVideoCall({ roomId: apt.tele_room_id, displayName: `Dr. ${session.user.first_name || session.user.email}` });
+  useAppointmentAlerts([...todayAppts, ...allAppts], openCall);
 
   const loadTodayQueue = async () => {
     try {
@@ -104,13 +113,9 @@ export default function DoctorDashboardPage({ session, onLogout }) {
                       <div className="text-xs text-slate-500 truncate">{apt.appointment_time?.slice(0, 5)} • {apt.chief_complaint || "Checkup"}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
                     <Badge status={apt.status} />
-                    {apt.appointment_type === "TELE_HEALTH" && (
-                      <span className="hidden sm:flex text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full items-center gap-1">
-                        <Video size={10} /> Tele
-                      </span>
-                    )}
+                    <JoinCallBtn apt={apt} onJoin={openCall} />
                     {apt.status === "SCHEDULED" && (
                       <Btn size="sm" onClick={() => updateStatus(apt.id, "IN_PROGRESS")}>
                         {isAr ? "بدء" : "Start"}
@@ -156,7 +161,8 @@ export default function DoctorDashboardPage({ session, onLogout }) {
                     <td className="hidden md:table-cell"><span className={`text-xs font-semibold ${apt.appointment_type === "TELE_HEALTH" ? "text-blue-600" : "text-slate-600"}`}>{apt.appointment_type}</span></td>
                     <td><Badge status={apt.status} /></td>
                     <td className="whitespace-nowrap">
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5 flex-wrap">
+                        <JoinCallBtn apt={apt} onJoin={openCall} />
                         {apt.status === "SCHEDULED" && <Btn size="sm" onClick={() => updateStatus(apt.id, "IN_PROGRESS")}>Start</Btn>}
                         {apt.status === "IN_PROGRESS" && <Btn size="sm" variant="secondary" onClick={() => updateStatus(apt.id, "COMPLETED")}>Done</Btn>}
                       </div>
@@ -288,6 +294,15 @@ export default function DoctorDashboardPage({ session, onLogout }) {
 
   return (
     <div className="relative z-10 flex min-h-screen">
+      {/* Video Call Modal */}
+      {videoCall && (
+        <VideoCallModal
+          roomId={videoCall.roomId}
+          displayName={videoCall.displayName}
+          role="DOCTOR"
+          onClose={() => setVideoCall(null)}
+        />
+      )}
       <Sidebar
         role="DOCTOR"
         active={active}
@@ -321,5 +336,36 @@ export default function DoctorDashboardPage({ session, onLogout }) {
         </div>
       </main>
     </div>
+  );
+}
+
+// ── Smart time-aware Join Call Button ─────────────────────────────────────────
+function JoinCallBtn({ apt, onJoin }) {
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceUpdate(n => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const cs = getCallStatus(apt);
+  if (cs.state === "na") return null;
+
+  const styles = {
+    upcoming: "bg-slate-100 text-slate-500 cursor-not-allowed",
+    soon:     "bg-amber-500 hover:bg-amber-600 text-white animate-pulse",
+    now:      "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/40 animate-pulse",
+    ended:    "bg-slate-200 text-slate-400 cursor-not-allowed",
+  };
+
+  return (
+    <button
+      disabled={!cs.canJoin}
+      onClick={() => cs.canJoin && onJoin(apt)}
+      title={cs.state === "upcoming" ? "Video call unlocks 10 min before appointment" : "Join TeleHealth video call"}
+      className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg font-semibold transition ${styles[cs.state]}`}
+    >
+      <Video size={11} />
+      {cs.label}
+    </button>
   );
 }

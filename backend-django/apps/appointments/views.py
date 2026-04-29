@@ -98,3 +98,86 @@ class PrescriptionDetailView(generics.RetrieveAPIView):
         if user.role == User.Role.PHARMACIST:
             return qs.all()
         return qs.filter(appointment__patient=user)
+
+
+# ── OPD Views ────────────────────────────────────────────────────────────────
+
+from .models import OPDVisit, XRayRequest
+from rest_framework import serializers as drf_serializers
+
+
+class OPDVisitSerializer(drf_serializers.ModelSerializer):
+    referring_doctor_name = drf_serializers.CharField(
+        source="referring_doctor.user.get_full_name", read_only=True
+    )
+
+    class Meta:
+        model = OPDVisit
+        fields = [
+            "id", "patient_name", "patient_phone", "age", "gender",
+            "reason", "bp", "temperature", "weight_kg",
+            "referring_doctor", "referring_doctor_name",
+            "status", "notes", "visit_date", "created_at",
+        ]
+        read_only_fields = ["id", "visit_date", "created_at"]
+
+
+class IsStaff(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ("ADMIN", "DOCTOR", "PHARMACIST")
+
+
+class OPDVisitListCreateView(generics.ListCreateAPIView):
+    serializer_class = OPDVisitSerializer
+    permission_classes = [IsStaff]
+
+    def get_queryset(self):
+        qs = OPDVisit.objects.all()
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        today_only = self.request.query_params.get("today")
+        if today_only == "true":
+            qs = qs.filter(visit_date=timezone.now().date())
+        return qs
+
+
+class OPDVisitDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = OPDVisit.objects.all()
+    serializer_class = OPDVisitSerializer
+    permission_classes = [IsStaff]
+
+
+# ── X-Ray / Radiology Views ──────────────────────────────────────────────────
+
+class XRayRequestSerializer(drf_serializers.ModelSerializer):
+    referring_doctor_name = drf_serializers.CharField(
+        source="referring_doctor.user.get_full_name", read_only=True
+    )
+
+    class Meta:
+        model = XRayRequest
+        fields = [
+            "id", "patient_name", "patient_phone", "xray_type",
+            "referring_doctor", "referring_doctor_name",
+            "status", "notes", "report", "requested_at",
+        ]
+        read_only_fields = ["id", "requested_at"]
+
+
+class XRayRequestListCreateView(generics.ListCreateAPIView):
+    serializer_class = XRayRequestSerializer
+    permission_classes = [IsStaff]
+
+    def get_queryset(self):
+        qs = XRayRequest.objects.all()
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+
+class XRayRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = XRayRequest.objects.all()
+    serializer_class = XRayRequestSerializer
+    permission_classes = [IsStaff]

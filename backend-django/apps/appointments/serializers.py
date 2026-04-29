@@ -46,6 +46,9 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
             "doctor", "appointment_date", "appointment_time",
             "appointment_type", "currency", "chief_complaint",
         ]
+        # Disable auto-generated unique_together validator — we handle it
+        # manually in validate() with a user-friendly error message.
+        validators = []
 
     def validate(self, attrs):
         doctor = attrs["doctor"]
@@ -78,8 +81,19 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
             "EUR": doctor.consultation_fee_eur,
         }
         fee = fee_map.get(currency, doctor.consultation_fee_aed)
+
+        # Apply TeleHealth discount if applicable
+        if validated_data.get("appointment_type") == Appointment.Type.TELE_HEALTH:
+            discount = Decimal(str(doctor.telehealth_discount_percent)) / Decimal("100")
+            fee = (fee * (Decimal("1") - discount)).quantize(Decimal("0.01"))
+
         validated_data["fee"] = fee
         validated_data["patient"] = self.context["request"].user
+
+        # Generate a unique Jitsi room ID for TeleHealth appointments
+        if validated_data.get("appointment_type") == Appointment.Type.TELE_HEALTH:
+            import uuid
+            validated_data["tele_room_id"] = f"medicore-{uuid.uuid4().hex[:12]}"
 
         appointment = super().create(validated_data)
 
