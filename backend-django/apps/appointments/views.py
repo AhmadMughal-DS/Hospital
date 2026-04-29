@@ -260,3 +260,119 @@ class XRayRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset           = XRayRequest.objects.select_related("referring_doctor__user")
     serializer_class   = XRayRequestSerializer
     permission_classes = [IsStaff]
+
+
+# ── Doctor Rating ─────────────────────────────────────────────────────────────
+
+from .models import DoctorRating, Notification
+from rest_framework import serializers as drf_serializers
+
+
+class DoctorRatingSerializer(drf_serializers.ModelSerializer):
+    patient_name = drf_serializers.CharField(source="patient.get_full_name", read_only=True)
+
+    class Meta:
+        model = DoctorRating
+        fields = ["id", "appointment", "patient", "patient_name", "doctor", "stars", "comment", "created_at"]
+        read_only_fields = ["id", "patient", "doctor", "created_at"]
+
+
+class RatingCreateView(APIView):
+    """Patient rates a COMPLETED appointment — one rating per appointment."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, appointment_id):
+        try:
+            apt = Appointment.objects.get(pk=appointment_id, patient=request.user)
+        except Appointment.DoesNotExist:
+            return Response({"detail": "Appointment not found."}, status=404)
+
+        if apt.status != Appointment.Status.COMPLETED:
+            return Response({"detail": "You can only rate completed appointments."}, status=400)
+
+        if hasattr(apt, "rating"):
+            return Response({"detail": "You have already rated this appointment."}, status=400)
+
+        stars   = int(request.data.get("stars", 5))
+        comment = request.data.get("comment", "")
+        if not 1 <= stars <= 5:
+            return Response({"detail": "Stars must be between 1 and 5."}, status=400)
+
+        rating = DoctorRating.objects.create(
+            appointment=apt, patient=request.user,
+            doctor=apt.doctor, stars=stars, comment=comment,
+        )
+        return Response(DoctorRatingSerializer(rating).data, status=201)
+
+
+class DoctorRatingsView(generics.ListAPIView):
+    """Public list of ratings for a doctor."""
+    serializer_class   = DoctorRatingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        doctor_id = self.kwargs["doctor_id"]
+        return DoctorRating.objects.filter(doctor_id=doctor_id).select_related("patient")
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+class NotificationSerializer(drf_serializers.ModelSerializer):
+    class Meta:
+        model  = Notification
+        fields = ["id", "type", "title", "message", "link", "is_read", "created_at"]
+
+
+class NotificationListView(generics.ListAPIView):
+    """GET /api/v1/appointments/notifications/ — current user's notifications."""
+    serializer_class   = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+
+class NotificationMarkReadView(APIView):
+    """POST /api/v1/appointments/notifications/mark-read/ — mark all as read."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        ids = request.data.get("ids", [])
+        qs  = Notification.objects.filter(user=request.user)
+        if ids:
+            qs = qs.filter(id__in=ids)
+        count = qs.update(is_read=True)
+        return Response({"marked": count})
+
+
+# ── All prescriptions list (for pharmacist) ───────────────────────────────────
+
+class PrescriptionsListView(generics.ListAPIView):
+    """GET /api/v1/appointments/prescriptions/ — pharmacist sees all pending Rxs."""
+    serializer_class   = PrescriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs   = Prescription.objects.select_related(
+            "appointment__patient__patient_profile",
+            "appointment__doctor__user",
+        ).prefetch_related("items__drug")
+
+        if user.role == User.Role.PHARMACIST:
+            return qs.filter(is_dispensed=False)
+        if user.role == User.Role.ADMIN:
+            return qs.all()
+        if user.role == User.Role.DOCTOR:
+            return qs.filter(appointment__doctor__user=user)
+        return qs.filter(appointment__patient=user)
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        data = PrescriptionSerializer(qs, many=True).data
+        # Attach patient_name to each prescription for UI display
+        for item, obj in zip(data, qs):
+            item["appointment_ref"] = obj.appointment.appointment_ref
+            item["patient_name"]    = obj.appointment.patient.get_full_name() or obj.appointment.patient.email
+            item["appointment_date"] = str(obj.appointment.appointment_date)
+        return Response(data)

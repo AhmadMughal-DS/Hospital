@@ -8,11 +8,12 @@ import {
 
 const roleNavs = {
   PATIENT: [
-    { id: "overview", label: "Overview", labelAr: "نظرة عامة", icon: LayoutDashboard },
-    { id: "booking", label: "Book Appointment", labelAr: "حجز موعد", icon: Calendar },
-    { id: "records", label: "Medical Records", labelAr: "السجلات الطبية", icon: FileText },
-    { id: "payments", label: "Payments", labelAr: "المدفوعات", icon: CreditCard },
-    { id: "queue", label: "Queue", labelAr: "قائمة الانتظار", icon: ClipboardList },
+    { id: "overview",  label: "Overview",         labelAr: "نظرة عامة",        icon: LayoutDashboard },
+    { id: "booking",   label: "Book Appointment",  labelAr: "حجز موعد",          icon: Calendar },
+    { id: "profile",   label: "My Profile",        labelAr: "ملفي",              icon: Users },
+    { id: "records",   label: "Medical Records",   labelAr: "السجلات الطبية",    icon: FileText },
+    { id: "payments",  label: "Payments",          labelAr: "المدفوعات",         icon: CreditCard },
+    { id: "queue",     label: "Queue",             labelAr: "قائمة الانتظار",   icon: ClipboardList },
   ],
   DOCTOR: [
     { id: "overview",       label: "Dashboard",       labelAr: "لوحة التحكم",        icon: LayoutDashboard },

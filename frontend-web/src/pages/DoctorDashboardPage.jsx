@@ -8,6 +8,7 @@ import { useSEO } from "../hooks/useSEO";
 import VideoCallModal from "../components/VideoCallModal";
 import { useAppointmentAlerts, getCallStatus } from "../hooks/useAppointmentAlerts";
 import PatientRecordModal from "../components/PatientRecordModal";
+import NotificationBell from "../components/NotificationBell";
 
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
@@ -59,7 +60,7 @@ export default function DoctorDashboardPage({ session, onLogout }) {
     loadTodayQueue();
     loadAllAppts();
     // Load my patients
-    axios.get(`${API}/api/v1/accounts/patients/`, { headers })
+    axios.get(`${API}/api/v1/auth/patients/`, { headers })
       .then(r => setMyPatients(r.data.results || r.data))
       .catch(() => {});
     const id = setInterval(loadTodayQueue, 10000);
@@ -339,6 +340,7 @@ export default function DoctorDashboardPage({ session, onLogout }) {
               <span className="hidden sm:inline text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-semibold">
                 📹 {isAr ? "مرئية متاحة" : "TeleHealth Ready"}
               </span>
+              <NotificationBell headers={headers}/>
             </div>
           </div>
         </header>

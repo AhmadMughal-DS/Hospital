@@ -41,7 +41,7 @@ export default function AdminDashboardPage({ session, onLogout }) {
         axios.get(`${API}/api/v1/billing/summary/`, { headers }),
         axios.get(`${API}/api/v1/doctors/admin-all/`, { headers }),
         axios.get(`${API}/api/v1/doctors/specialties/`, { headers }),
-        axios.get(`${API}/api/v1/accounts/patients/`, { headers }),
+        axios.get(`${API}/api/v1/auth/patients/`, { headers }),
       ]);
       setAppointments(appts.data.results || appts.data);
       setInvoices(invs.data.results || invs.data);

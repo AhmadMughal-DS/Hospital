@@ -37,7 +37,7 @@ export default function PatientRecordModal({ patientId, headers, onClose }) {
 
   useEffect(() => {
     setLoading(true);
-    axios.get(`${API}/api/v1/accounts/patients/${patientId}/`, { headers })
+    axios.get(`${API}/api/v1/auth/patients/${patientId}/`, { headers })
       .then(r => { setRecord(r.data); setLoading(false); })
       .catch(() => { setError("Could not load patient record."); setLoading(false); });
   }, [patientId]);

@@ -254,3 +254,51 @@ class XRayRequest(models.Model):
 
     def __str__(self):
         return f"{self.xray_ref} — {self.xray_type} for {self.patient_name}"
+
+
+# ── Doctor Rating ──────────────────────────────────────────────────────────────
+
+class DoctorRating(models.Model):
+    appointment = models.OneToOneField(
+        Appointment, on_delete=models.CASCADE, related_name="rating"
+    )
+    patient     = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ratings_given")
+    doctor      = models.ForeignKey(DoctorProfile, on_delete=models.CASCADE, related_name="ratings")
+    stars       = models.PositiveSmallIntegerField(
+        choices=[(1,"⭐"),(2,"⭐⭐"),(3,"⭐⭐⭐"),(4,"⭐⭐⭐⭐"),(5,"⭐⭐⭐⭐⭐")]
+    )
+    comment     = models.TextField(blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes  = [models.Index(fields=["doctor", "stars"])]
+
+    def __str__(self):
+        return f"{self.stars}★ for Dr.{self.doctor.user.get_full_name()} by {self.patient.email}"
+
+
+# ── In-App Notification ────────────────────────────────────────────────────────
+
+class Notification(models.Model):
+    class Type(models.TextChoices):
+        APPOINTMENT  = "APPOINTMENT",  "Appointment"
+        PRESCRIPTION = "PRESCRIPTION", "Prescription"
+        PAYMENT      = "PAYMENT",      "Payment"
+        GENERAL      = "GENERAL",      "General"
+        ALERT        = "ALERT",        "Alert"
+
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    type       = models.CharField(max_length=16, choices=Type.choices, default=Type.GENERAL)
+    title      = models.CharField(max_length=200)
+    message    = models.TextField()
+    link       = models.CharField(max_length=200, blank=True, help_text="Frontend route or ref")
+    is_read    = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes  = [models.Index(fields=["user", "is_read"])]
+
+    def __str__(self):
+        return f"[{self.type}] {self.title} → {self.user.email}"
