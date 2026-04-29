@@ -24,7 +24,7 @@ services:
       context: ./backend-django
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./backend-django:/app
     environment:
@@ -49,13 +49,13 @@ services:
       context: ./frontend-web
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"
+      - "8082:5173"
     volumes:
       - ./frontend-web:/app
       - /app/node_modules
     environment:
-      - VITE_DJANGO_API_BASE=http://localhost:8000
-      - VITE_QUEUE_API_BASE=http://localhost:8000
+      - VITE_DJANGO_API_BASE=http://localhost:8001
+      - VITE_QUEUE_API_BASE=http://localhost:8001
     depends_on:
       - backend
     command: npm run dev -- --host

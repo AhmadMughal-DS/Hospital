@@ -28,7 +28,7 @@ services:
     image: ${DOCKER_USERNAME}/hms-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       DEBUG:       "0"
       SECRET_KEY:  ${SECRET_KEY}
@@ -70,7 +70,7 @@ services:
     image: ${DOCKER_USERNAME}/hms-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8082:80"
     depends_on:
       - backend
     healthcheck:
