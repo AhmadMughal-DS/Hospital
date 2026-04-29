@@ -7,6 +7,8 @@ import { Video } from "lucide-react";
 import { useSEO } from "../hooks/useSEO";
 import VideoCallModal from "../components/VideoCallModal";
 import { useAppointmentAlerts, getCallStatus } from "../hooks/useAppointmentAlerts";
+import PatientRecordModal from "../components/PatientRecordModal";
+
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
 
@@ -19,6 +21,9 @@ export default function DoctorDashboardPage({ session, onLogout }) {
 
   const [todayAppts, setTodayAppts] = useState([]);
   const [allAppts, setAllAppts] = useState([]);
+  const [myPatients, setMyPatients] = useState([]);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [viewPatientId, setViewPatientId] = useState(null); // opens PatientRecordModal
   const [loading, setLoading] = useState(false);
 
   // Prescription writer state
@@ -27,6 +32,7 @@ export default function DoctorDashboardPage({ session, onLogout }) {
   const [rxItems, setRxItems] = useState([{ drug_name: "", dosage: "", frequency: "Twice daily", duration_days: 7, quantity: 1, instructions: "" }]);
   const [rxResult, setRxResult] = useState(null);
   const [rxLoading, setRxLoading] = useState(false);
+
 
   // Video call state
   const [videoCall, setVideoCall] = useState(null); // { roomId, displayName }
@@ -52,9 +58,14 @@ export default function DoctorDashboardPage({ session, onLogout }) {
   useEffect(() => {
     loadTodayQueue();
     loadAllAppts();
+    // Load my patients
+    axios.get(`${API}/api/v1/accounts/patients/`, { headers })
+      .then(r => setMyPatients(r.data.results || r.data))
+      .catch(() => {});
     const id = setInterval(loadTodayQueue, 10000);
     return () => clearInterval(id);
   }, []);
+
 
   const updateStatus = async (id, status) => {
     try {
@@ -332,9 +343,59 @@ export default function DoctorDashboardPage({ session, onLogout }) {
           </div>
         </header>
         <div className="p-4 sm:p-6">
-          {sections[active]}
+          {/* My Patients section */}
+          {active === "patients" ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <input placeholder="🔍 Search by name, email or Patient ID..."
+                  value={patientSearch} onChange={e=>setPatientSearch(e.target.value)}
+                  className="border border-slate-200 rounded-xl px-4 py-2 text-sm flex-1 min-w-[200px]"/>
+                <span className="text-xs text-slate-400 font-semibold">{myPatients.length} patient(s)</span>
+              </div>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {myPatients
+                  .filter(p => `${p.first_name} ${p.last_name} ${p.email} ${p.patient_id}`.toLowerCase().includes(patientSearch.toLowerCase()))
+                  .map(p => (
+                    <div key={p.id} onClick={()=>setViewPatientId(p.patient_id)}
+                      className="p-4 rounded-2xl border-2 border-slate-100 hover:border-hmsTeal/40 cursor-pointer transition group">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-hmsTeal to-hmsMint flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                          {(p.first_name?.[0] || p.email?.[0] || "P").toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-hmsNavy truncate">{p.first_name} {p.last_name}</div>
+                          <div className="font-mono text-xs text-slate-400">{p.patient_id}</div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-slate-500 truncate">{p.email}</div>
+                      {p.profile?.blood_group && p.profile.blood_group !== "UNKNOWN" && (
+                        <div className="mt-2 text-xs text-red-600 font-semibold">🩸 {p.profile.blood_group}</div>
+                      )}
+                      {p.profile?.allergies && (
+                        <div className="mt-1 text-xs text-orange-600 truncate">⚠️ {p.profile.allergies}</div>
+                      )}
+                      <div className="mt-3 text-xs text-hmsTeal font-semibold group-hover:underline">View Full Record →</div>
+                    </div>
+                  ))}
+                {myPatients.length === 0 && (
+                  <div className="col-span-3 text-center py-16 text-slate-400">
+                    <div className="text-4xl mb-2">👥</div>
+                    <p>No patients yet. They'll appear here after their first appointment with you.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : sections[active]}
         </div>
       </main>
+      {/* Patient Record Modal */}
+      {viewPatientId && (
+        <PatientRecordModal
+          patientId={viewPatientId}
+          headers={headers}
+          onClose={() => setViewPatientId(null)}
+        />
+      )}
     </div>
   );
 }

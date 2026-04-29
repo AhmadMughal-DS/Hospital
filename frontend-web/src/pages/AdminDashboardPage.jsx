@@ -7,6 +7,8 @@ import { useSEO } from "../hooks/useSEO";
 import AdminDoctorsSection from "../components/admin/AdminDoctorsSection";
 import AdminPharmacySection from "../components/admin/AdminPharmacySection";
 import AdminOPDXRaySection from "../components/admin/AdminOPDXRaySection";
+import PatientRecordModal from "../components/PatientRecordModal";
+
 
 const API = import.meta.env.VITE_DJANGO_API_BASE || "http://localhost:8000";
 
@@ -25,10 +27,13 @@ export default function AdminDashboardPage({ session, onLogout }) {
   const [queue, setQueue] = useState({ current: null, waiting_count: 0, queue: [] });
   const [billingSummary, setBillingSummary] = useState(null);
   const [aptFilter, setAptFilter] = useState("ALL");
+  const [allPatients, setAllPatients] = useState([]);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [viewPatientId, setViewPatientId] = useState(null);
 
   const load = async () => {
     try {
-      const [appts, invs, drugsRes, queueRes, summary, docsRes, specsRes] = await Promise.all([
+      const [appts, invs, drugsRes, queueRes, summary, docsRes, specsRes, patientsRes] = await Promise.all([
         axios.get(`${API}/api/v1/appointments/`, { headers }),
         axios.get(`${API}/api/v1/billing/invoices/`, { headers }),
         axios.get(`${API}/api/v1/pharmacy/drugs/`, { headers }),
@@ -36,6 +41,7 @@ export default function AdminDashboardPage({ session, onLogout }) {
         axios.get(`${API}/api/v1/billing/summary/`, { headers }),
         axios.get(`${API}/api/v1/doctors/admin-all/`, { headers }),
         axios.get(`${API}/api/v1/doctors/specialties/`, { headers }),
+        axios.get(`${API}/api/v1/accounts/patients/`, { headers }),
       ]);
       setAppointments(appts.data.results || appts.data);
       setInvoices(invs.data.results || invs.data);
@@ -44,6 +50,7 @@ export default function AdminDashboardPage({ session, onLogout }) {
       setBillingSummary(summary.data);
       setDoctors(docsRes.data.results || docsRes.data);
       setSpecialties(specsRes.data.results || specsRes.data);
+      setAllPatients(patientsRes.data.results || patientsRes.data);
     } catch {}
   };
 
@@ -303,6 +310,49 @@ export default function AdminDashboardPage({ session, onLogout }) {
         </Card>
       </div>
     ),
+
+    patients: (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <input placeholder="🔍 Search by name, email or Patient ID..."
+            value={patientSearch} onChange={e=>setPatientSearch(e.target.value)}
+            className="border border-slate-200 rounded-xl px-4 py-2 text-sm flex-1 min-w-[200px]"/>
+          <span className="text-xs text-slate-400 font-semibold">{allPatients.length} total patient(s)</span>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {allPatients
+            .filter(p => `${p.first_name} ${p.last_name} ${p.email} ${p.patient_id}`.toLowerCase().includes(patientSearch.toLowerCase()))
+            .map(p => (
+              <div key={p.id} onClick={()=>setViewPatientId(p.patient_id)}
+                className="p-4 rounded-2xl border-2 border-slate-100 hover:border-hmsTeal/40 cursor-pointer transition group">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-hmsTeal to-hmsMint flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {(p.first_name?.[0]||p.email?.[0]||"P").toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-hmsNavy text-sm truncate">{p.first_name} {p.last_name}</div>
+                    <div className="font-mono text-xs text-slate-400">{p.patient_id}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-500 truncate mb-2">{p.email}</div>
+                {p.profile?.blood_group && p.profile.blood_group !== "UNKNOWN" && (
+                  <span className="text-xs bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-full">🩸 {p.profile.blood_group}</span>
+                )}
+                {p.profile?.allergies && (
+                  <div className="mt-1 text-xs text-orange-600 truncate">⚠️ {p.profile.allergies}</div>
+                )}
+                <div className="mt-3 text-xs text-hmsTeal font-semibold group-hover:underline">View Full Record →</div>
+              </div>
+            ))}
+          {allPatients.length === 0 && (
+            <div className="col-span-4 text-center py-16 text-slate-400">
+              <div className="text-4xl mb-2">👥</div>
+              <p>No patients registered yet.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    ),
   };
 
   return (
@@ -322,6 +372,13 @@ export default function AdminDashboardPage({ session, onLogout }) {
         </header>
         <div className="p-4 sm:p-6">{sections[active] || sections.overview}</div>
       </main>
+      {viewPatientId && (
+        <PatientRecordModal
+          patientId={viewPatientId}
+          headers={headers}
+          onClose={() => setViewPatientId(null)}
+        />
+      )}
     </div>
   );
 }
