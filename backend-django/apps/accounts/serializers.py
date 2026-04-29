@@ -10,7 +10,7 @@ class RegisterSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8)
-    language_preference = serializers.ChoiceField(choices=["EN", "AR"], required=False, default="EN")
+    language_preference = serializers.ChoiceField(choices=["en", "ar", "EN", "AR"], required=False, default="en")
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -55,14 +55,12 @@ class LoginSerializer(serializers.Serializer):
         email = attrs["email"].strip().lower()
         password = attrs["password"]
 
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist as exc:
-            raise serializers.ValidationError("Invalid email or password.") from exc
-
-        auth_user = authenticate(username=user.username, password=password)
+        # USERNAME_FIELD is 'email', so authenticate() must receive email=
+        auth_user = authenticate(email=email, password=password)
         if not auth_user:
             raise serializers.ValidationError("Invalid email or password.")
+        if not auth_user.is_active:
+            raise serializers.ValidationError("Account is disabled. Please contact support.")
 
         attrs["user"] = auth_user
         return attrs
