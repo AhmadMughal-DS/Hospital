@@ -360,7 +360,7 @@ jobs:
               git -C "$APP_DIR" pull origin master
             else
               echo "-> Cloning repo..."
-              rm -rf "$APP_DIR"
+              sudo rm -rf "$APP_DIR"
               git clone "$REPO_URL" "$APP_DIR"
             fi
             echo "[OK] Repo up to date"
@@ -393,26 +393,44 @@ jobs:
             NGINX_LINK="/etc/nginx/sites-enabled/hospital"
 
             if [ -f "$NGINX_CONF" ]; then
-              cp "$NGINX_CONF" "$NGINX_SITE"
+              sudo cp "$NGINX_CONF" "$NGINX_SITE"
               if [ ! -L "$NGINX_LINK" ]; then
-                ln -s "$NGINX_SITE" "$NGINX_LINK"
+                sudo ln -s "$NGINX_SITE" "$NGINX_LINK"
                 echo "[OK] Nginx symlink created"
               else
                 echo "[OK] Nginx symlink already exists"
               fi
-              nginx -t && systemctl reload nginx && echo "[OK] Nginx reloaded"
+              sudo nginx -t && sudo systemctl reload nginx && echo "[OK] Nginx reloaded"
             else
               echo "[WARN] nginx/hospital.conf not found - skipping nginx setup"
             fi
 
-            # ── Step 4: Pull latest Docker images ──────────────────
-            docker pull "$BACKEND_IMAGE:latest"
-            docker pull "$FRONTEND_IMAGE:latest"
-            echo "[OK] Images pulled"
+            # ── Step 4: Pull latest Docker images (with retry) ──────
+            pull_image() {
+              local image=$1
+              local max_attempts=3
+              local attempt=1
+              while [ $attempt -le $max_attempts ]; do
+                echo "-> Pulling $image (attempt $attempt/$max_attempts)..."
+                if sudo docker pull "$image"; then
+                  echo "[OK] Pulled $image"
+                  return 0
+                fi
+                echo "[WARN] Pull failed, retrying in 10s..."
+                sleep 10
+                attempt=$((attempt + 1))
+              done
+              echo "[FAIL] Could not pull $image after $max_attempts attempts"
+              return 1
+            }
+
+            pull_image "$BACKEND_IMAGE:latest"
+            pull_image "$FRONTEND_IMAGE:latest"
+            echo "[OK] All images pulled"
 
             # ── Step 5: Start services via docker-compose ───────────
             cd "$APP_DIR"
-            docker compose -f docker-compose.prod.yml --env-file .env \
+            sudo docker compose -f docker-compose.prod.yml --env-file .env \
               up -d --remove-orphans
             echo "[OK] Containers started"
 
@@ -428,20 +446,20 @@ jobs:
               echo "[OK] Frontend health check passed (HTTP $frontend_status)"
             else
               echo "[FAIL] Frontend health check failed (HTTP $frontend_status)"
-              docker compose -f docker-compose.prod.yml logs --tail=50
+              sudo docker compose -f docker-compose.prod.yml logs --tail=50
               exit 1
             fi
 
             # ── Step 7: Cleanup old unused resources ────────────────
-            docker container prune -f || true
-            docker image prune -af --filter "until=168h" || true
-            docker network prune -f  || true
+            sudo docker container prune -f || true
+            sudo docker image prune -af --filter "until=168h" || true
+            sudo docker network prune -f  || true
 
             echo "=== Running containers ==="
-            docker compose -f docker-compose.prod.yml ps
+            sudo docker compose -f docker-compose.prod.yml ps
 
             echo "=== Docker disk usage ==="
-            docker system df
+            sudo docker system df
 
             echo "============================================"
             echo "  Deployment Completed Successfully [OK]"
