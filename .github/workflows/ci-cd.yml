@@ -428,13 +428,25 @@ jobs:
             pull_image "$FRONTEND_IMAGE:latest"
             echo "[OK] All images pulled"
 
-            # ── Step 5: Start services via docker-compose ───────────
+            # ── Step 5: Ensure docker-compose is installed ──────────
+            if ! command -v docker-compose &>/dev/null; then
+              echo "-> Installing docker-compose..."
+              sudo curl -fsSL \
+                "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
+                -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              echo "[OK] docker-compose installed: $(docker-compose --version)"
+            else
+              echo "[OK] docker-compose found: $(docker-compose --version)"
+            fi
+
+            # ── Step 6: Start services via docker-compose ───────────
             cd "$APP_DIR"
             sudo docker-compose -f docker-compose.prod.yml --env-file .env \
               up -d --remove-orphans
             echo "[OK] Containers started"
 
-            # ── Step 6: Post-deploy health check ────────────────────
+            # ── Step 7: Post-deploy health check ────────────────────
             echo "Waiting 15s for containers to stabilize..."
             sleep 15
 
@@ -450,7 +462,7 @@ jobs:
               exit 1
             fi
 
-            # ── Step 7: Cleanup old unused resources ────────────────
+            # ── Step 8: Cleanup old unused resources ────────────────
             sudo docker container prune -f || true
             sudo docker image prune -af --filter "until=168h" || true
             sudo docker network prune -f  || true
