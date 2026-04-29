@@ -98,6 +98,7 @@ jobs:
           test -f frontend-web/package.json        && echo "✓ package.json"           || { echo "✗ package.json missing"; exit 1; }
           test -d backend-django/apps              && echo "✓ apps/"                  || { echo "✗ apps/ missing"; exit 1; }
           test -d frontend-web/src                 && echo "✓ src/"                   || { echo "✗ src/ missing"; exit 1; }
+          test -f nginx/hospital.conf              && echo "✓ nginx/hospital.conf"    || { echo "✗ nginx/hospital.conf missing"; exit 1; }
           echo "=== Structure validation complete ==="
 
 # ============================================================
@@ -215,7 +216,7 @@ jobs:
             code=$(curl -s -o /dev/null -w "%{http_code}" \
               --retry 5 --retry-connrefused --retry-delay 1 \
               http://localhost:8001/$path || true)
-            echo "  $path → HTTP $code"
+            echo "  $path -> HTTP $code"
           done
 
       # ── Security Header Check ─────────────────────────────────
@@ -331,11 +332,6 @@ jobs:
     environment: production
 
     steps:
-      - name: Checkout code (for docker-compose.prod.yml)
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_PAT || github.token }}
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -348,20 +344,30 @@ jobs:
             BACKEND_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}"
             FRONTEND_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}"
             APP_DIR="/opt/hms"
+            REPO_URL="https://github.com/AhmadMughal-DS/Hospital.git"
 
             echo "============================================"
-            echo "  MediCore HMS — Deployment Triggered"
+            echo "  MediCore HMS - Deployment Triggered"
             echo "  Backend:  $BACKEND_IMAGE:latest"
             echo "  Frontend: $FRONTEND_IMAGE:latest"
             echo "============================================"
 
-            # ── Pull latest images ──────────────────────────────
-            docker pull "$BACKEND_IMAGE:latest"
-            docker pull "$FRONTEND_IMAGE:latest"
+            # ── Step 1: Clone or Pull latest repo ──────────────────
+            if [ -d "$APP_DIR/.git" ]; then
+              echo "-> Pulling latest code..."
+              git -C "$APP_DIR" fetch --all
+              git -C "$APP_DIR" reset --hard origin/master
+              git -C "$APP_DIR" pull origin master
+            else
+              echo "-> Cloning repo..."
+              rm -rf "$APP_DIR"
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+            echo "[OK] Repo up to date"
 
-            # ── Write environment file ──────────────────────────
+            # ── Step 2: Write .env file ─────────────────────────────
             mkdir -p "$APP_DIR"
-            cat > "$APP_DIR/.env" <<EOF
+            cat > "$APP_DIR/.env" << ENVEOF
             DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
             IMAGE_TAG=latest
             SECRET_KEY=${{ secrets.SECRET_KEY }}
@@ -378,40 +384,58 @@ jobs:
             STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
             VITE_DJANGO_API_BASE=${{ secrets.VITE_DJANGO_API_BASE }}
             VITE_QUEUE_API_BASE=${{ secrets.VITE_QUEUE_API_BASE }}
-            EOF
+            ENVEOF
+            echo "[OK] .env written"
 
-            # ── Copy docker-compose.prod.yml ────────────────────
-            # (Already cloned on VM OR copy via scp)
-            if [ ! -f "$APP_DIR/docker-compose.prod.yml" ]; then
-              echo "docker-compose.prod.yml not found. Please copy it to $APP_DIR"
-              exit 1
+            # ── Step 3: Setup Nginx reverse proxy ───────────────────
+            NGINX_CONF="$APP_DIR/nginx/hospital.conf"
+            NGINX_SITE="/etc/nginx/sites-available/hospital"
+            NGINX_LINK="/etc/nginx/sites-enabled/hospital"
+
+            if [ -f "$NGINX_CONF" ]; then
+              cp "$NGINX_CONF" "$NGINX_SITE"
+              if [ ! -L "$NGINX_LINK" ]; then
+                ln -s "$NGINX_SITE" "$NGINX_LINK"
+                echo "[OK] Nginx symlink created"
+              else
+                echo "[OK] Nginx symlink already exists"
+              fi
+              nginx -t && systemctl reload nginx && echo "[OK] Nginx reloaded"
+            else
+              echo "[WARN] nginx/hospital.conf not found - skipping nginx setup"
             fi
 
-            # ── Graceful restart using docker-compose ───────────
-            cd "$APP_DIR"
-            docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d \
-              --remove-orphans \
-              --wait
+            # ── Step 4: Pull latest Docker images ──────────────────
+            docker pull "$BACKEND_IMAGE:latest"
+            docker pull "$FRONTEND_IMAGE:latest"
+            echo "[OK] Images pulled"
 
-            # ── Health check post-deploy ────────────────────────
-            sleep 10
-            frontend_status=$(curl -s -o /dev/null -w "%{http_code}" \
+            # ── Step 5: Start services via docker-compose ───────────
+            cd "$APP_DIR"
+            docker compose -f docker-compose.prod.yml --env-file .env \
+              up -d --remove-orphans
+            echo "[OK] Containers started"
+
+            # ── Step 6: Post-deploy health check ────────────────────
+            echo "Waiting 15s for containers to stabilize..."
+            sleep 15
+
+            frontend_status=$(curl -sf -o /dev/null -w "%{http_code}" \
               --retry 5 --retry-connrefused --retry-delay 3 \
-              http://localhost:8082/health || true)
+              http://localhost:8082/health || echo "000")
+
             if [ "$frontend_status" = "200" ]; then
-              echo "✓ Frontend health check passed"
+              echo "[OK] Frontend health check passed (HTTP $frontend_status)"
             else
-              echo "✗ Frontend health check failed (HTTP $frontend_status)"
+              echo "[FAIL] Frontend health check failed (HTTP $frontend_status)"
               docker compose -f docker-compose.prod.yml logs --tail=50
               exit 1
             fi
 
-            # ── Clean up old unused resources ───────────────────
+            # ── Step 7: Cleanup old unused resources ────────────────
             docker container prune -f || true
             docker image prune -af --filter "until=168h" || true
             docker network prune -f  || true
-            docker builder prune -af --filter "until=168h" || true
 
             echo "=== Running containers ==="
             docker compose -f docker-compose.prod.yml ps
@@ -420,5 +444,5 @@ jobs:
             docker system df
 
             echo "============================================"
-            echo "  Deployment Completed Successfully ✓"
+            echo "  Deployment Completed Successfully [OK]"
             echo "============================================"
