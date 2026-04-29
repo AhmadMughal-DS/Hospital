@@ -202,8 +202,8 @@ Go to your repo → **Settings → Secrets and variables → Actions** and add:
 | `EMAIL_HOST_PASSWORD` | SMTP password | Gmail App Password |
 | `STRIPE_SECRET_KEY` | Stripe secret | `sk_live_...` |
 | `STRIPE_PUBLISHABLE_KEY` | Stripe pub key | `pk_live_...` |
-| `VITE_DJANGO_API_BASE` | Backend URL for frontend | `https://api.yourdomain.com` |
-| `VITE_QUEUE_API_BASE` | Queue API URL | `https://api.yourdomain.com` |
+| `VITE_DJANGO_API_BASE` | Backend URL for frontend | `https://hospital.ahmaddataops.com` |
+| `VITE_QUEUE_API_BASE` | Queue API URL | `https://hospital.ahmaddataops.com` |
 
 ---
 
