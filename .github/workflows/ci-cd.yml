@@ -298,7 +298,7 @@ jobs:
           labels:     ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha,scope=backend
           cache-to:   type=gha,mode=max,scope=backend
-          platforms:  linux/amd64,linux/arm64
+          platforms:  linux/amd64
 
       # ── Build & Push Frontend ────────────────────────────────
       - name: Build and push frontend to DockerHub
@@ -313,7 +313,7 @@ jobs:
             VITE_QUEUE_API_BASE=${{ secrets.VITE_QUEUE_API_BASE }}
           cache-from: type=gha,scope=frontend
           cache-to:   type=gha,mode=max,scope=frontend
-          platforms:  linux/amd64,linux/arm64
+          platforms:  linux/amd64
 
       - name: Log pushed image info
         run: |
