@@ -48,15 +48,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             gunicorn config.wsgi:application
-               --bind 0.0.0.0:8000
-               --workers 4
-               --threads 2
-               --timeout 120
-               --access-logfile -
-               --error-logfile -"
+    command: sh -c "python manage.py migrate --noinput && gunicorn hms_backend.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2 --timeout 120 --access-logfile - --error-logfile -"
     healthcheck:
       test:     ["CMD", "curl", "-f", "http://localhost:8000/api/v1/auth/health/ || exit 1"]
       interval: 30s

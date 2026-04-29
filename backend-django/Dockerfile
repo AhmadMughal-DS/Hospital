@@ -42,7 +42,7 @@ RUN SECRET_KEY=collectstatic-dummy \
 EXPOSE 8000
 
 # Use gunicorn in production (installed via requirements.txt)
-CMD ["gunicorn", "config.wsgi:application", \
+CMD ["gunicorn", "hms_backend.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "4", \
      "--threads", "2", \
