@@ -365,27 +365,30 @@ jobs:
             fi
             echo "[OK] Repo up to date"
 
-            # ── Step 2: Write .env file ─────────────────────────────
+            # ── Step 2: Write .env file (no heredoc — avoids indent issue) ──
             mkdir -p "$APP_DIR"
-            cat > "$APP_DIR/.env" << ENVEOF
-            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
-            IMAGE_TAG=latest
-            SECRET_KEY=${{ secrets.SECRET_KEY }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-            CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
-            EMAIL_HOST=${{ secrets.EMAIL_HOST }}
-            EMAIL_PORT=${{ secrets.EMAIL_PORT }}
-            EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
-            EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-            VITE_DJANGO_API_BASE=${{ secrets.VITE_DJANGO_API_BASE }}
-            VITE_QUEUE_API_BASE=${{ secrets.VITE_QUEUE_API_BASE }}
-            ENVEOF
-            echo "[OK] .env written"
+            {
+              printf 'DOCKER_USERNAME=%s\n' '${{ secrets.DOCKER_USERNAME }}'
+              printf 'IMAGE_TAG=latest\n'
+              printf 'SECRET_KEY=%s\n'              '${{ secrets.SECRET_KEY }}'
+              printf 'DB_NAME=%s\n'                 '${{ secrets.DB_NAME }}'
+              printf 'DB_USER=%s\n'                 '${{ secrets.DB_USER }}'
+              printf 'DB_PASSWORD=%s\n'             '${{ secrets.DB_PASSWORD }}'
+              printf 'ALLOWED_HOSTS=%s\n'           '${{ secrets.ALLOWED_HOSTS }}'
+              printf 'CORS_ALLOWED_ORIGINS=%s\n'    '${{ secrets.CORS_ALLOWED_ORIGINS }}'
+              printf 'EMAIL_HOST=%s\n'              '${{ secrets.EMAIL_HOST }}'
+              printf 'EMAIL_PORT=%s\n'              '${{ secrets.EMAIL_PORT }}'
+              printf 'EMAIL_HOST_USER=%s\n'         '${{ secrets.EMAIL_HOST_USER }}'
+              printf 'EMAIL_HOST_PASSWORD=%s\n'     '${{ secrets.EMAIL_HOST_PASSWORD }}'
+              printf 'STRIPE_SECRET_KEY=%s\n'       '${{ secrets.STRIPE_SECRET_KEY }}'
+              printf 'STRIPE_PUBLISHABLE_KEY=%s\n'  '${{ secrets.STRIPE_PUBLISHABLE_KEY }}'
+              printf 'VITE_DJANGO_API_BASE=%s\n'    '${{ secrets.VITE_DJANGO_API_BASE }}'
+              printf 'VITE_QUEUE_API_BASE=%s\n'     '${{ secrets.VITE_QUEUE_API_BASE }}'
+            } > "$APP_DIR/.env"
+            # Strip any accidental leading whitespace
+            sed -i 's/^[[:space:]]*//' "$APP_DIR/.env"
+            echo "[OK] .env written — contents:"
+            cat "$APP_DIR/.env"
 
             # ── Step 3: Setup Nginx reverse proxy ───────────────────
             NGINX_CONF="$APP_DIR/nginx/hospital.conf"
