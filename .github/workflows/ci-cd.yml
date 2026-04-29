@@ -430,7 +430,7 @@ jobs:
 
             # ── Step 5: Start services via docker-compose ───────────
             cd "$APP_DIR"
-            sudo docker compose -f docker-compose.prod.yml --env-file .env \
+            sudo docker-compose -f docker-compose.prod.yml --env-file .env \
               up -d --remove-orphans
             echo "[OK] Containers started"
 
@@ -446,7 +446,7 @@ jobs:
               echo "[OK] Frontend health check passed (HTTP $frontend_status)"
             else
               echo "[FAIL] Frontend health check failed (HTTP $frontend_status)"
-              sudo docker compose -f docker-compose.prod.yml logs --tail=50
+              sudo docker-compose -f docker-compose.prod.yml logs --tail=50
               exit 1
             fi
 
@@ -456,7 +456,7 @@ jobs:
             sudo docker network prune -f  || true
 
             echo "=== Running containers ==="
-            sudo docker compose -f docker-compose.prod.yml ps
+            sudo docker-compose -f docker-compose.prod.yml ps
 
             echo "=== Docker disk usage ==="
             sudo docker system df
