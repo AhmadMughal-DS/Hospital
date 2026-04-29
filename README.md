@@ -1,185 +1,268 @@
-# MediCore HMS — Enterprise Hospital Management System
+# 🏥 MediCore HMS — Hospital Management System
 
-A full-stack, enterprise-grade Hospital Management System targeting the Middle East (UAE/Saudi Arabia) and European markets.
+[![CI/CD Pipeline](https://github.com/AhmadMughal-DS/Hospital/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/AhmadMughal-DS/Hospital/actions/workflows/ci-cd.yml)
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
+![Django](https://img.shields.io/badge/Django-5.1-green?logo=django)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)
 
-## Tech Stack
+A **fully integrated, production-grade Hospital Management System** built with Django REST Framework + React (Vite). Supports 4 user roles with a shared patient record ecosystem, real-time queue, video consultations, pharmacy, billing, and automated CI/CD.
+
+---
+
+## 📋 Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Quick Start (Local Dev)](#quick-start-local-dev)
+- [Docker Deployment](#docker-deployment)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [GitHub Secrets](#github-secrets-required)
+- [API Overview](#api-overview)
+
+---
+
+## ✨ Features
+
+### 👤 Patient
+- Book appointments (In-Person / TeleHealth)
+- View & edit full profile (blood group, allergies, insurance)
+- Real-time video consultation via Jitsi
+- Download invoice PDF
+- View medical history timeline
+- Rate doctors after completed visits
+- Cancel appointments
+- In-app notification bell
+
+### 🩺 Doctor
+- Today's patient queue (auto-refreshed)
+- Write prescriptions with drug lookup
+- Update diagnosis, notes, follow-up
+- View full patient records (360° view)
+- TeleHealth video call
+- In-app notifications
+
+### 💊 Pharmacist
+- View pending prescriptions
+- Dispense medicines with stock tracking
+- Low-stock alerts
+- Drug inventory management
+
+### 🔧 Admin
+- Doctor management (add, edit, remove)
+- Full patient list with record viewer
+- Appointment management & status updates
+- Billing & revenue dashboard (6-month trend chart)
+- Pharmacy inventory control
+- OPD & X-Ray module
+- Live queue management
+
+---
+
+## 🛠 Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Backend | Django 5.1 + Django REST Framework + JWT |
-| Frontend | React 18 + Vite + Tailwind CSS 3 |
-| Database | SQLite (dev) / PostgreSQL (prod) |
-| Auth | JWT (SimpleJWT — Bearer token) |
-| i18n | react-i18next (EN + AR/RTL) |
-| Containerization | Docker + Docker Compose |
+|-------|------------|
+| **Backend** | Django 5.1, Django REST Framework, SimpleJWT |
+| **Database** | PostgreSQL 16 |
+| **Frontend** | React 18, Vite, Tailwind CSS |
+| **Video Calls** | Jitsi Meet (WebRTC) |
+| **Payments** | Stripe |
+| **PDF** | ReportLab |
+| **Server** | Gunicorn + Nginx |
+| **Containers** | Docker + Docker Compose |
+| **CI/CD** | GitHub Actions |
 
 ---
 
-## Quick Start (Local Development)
+## 🏛 Architecture
 
-### 1. Backend (Django)
-
-```bash
-cd backend-django
-
-# Activate virtual environment
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate    # macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run migrations
-python manage.py migrate
-
-# Seed demo data
-set PYTHONIOENCODING=utf-8
-python manage.py seed_hms
-
-# Start server (port 8000)
-python manage.py runserver
 ```
-
-### 2. Frontend (React)
-
-```bash
-cd frontend-web
-npm install
-npm run dev        # Starts at http://localhost:5173
+┌─────────────────────────────────────────────────┐
+│                  GitHub Actions                  │
+│  Lint → Build/Test → Push DockerHub → Deploy VM │
+└─────────────────────────────────────────────────┘
+                        │
+              ┌─────────▼─────────┐
+              │   Production VM   │
+              │                   │
+              │  ┌─────────────┐  │
+              │  │   Nginx:80  │  │  ← React SPA
+              │  └──────┬──────┘  │
+              │         │         │
+              │  ┌──────▼──────┐  │
+              │  │ Gunicorn:   │  │  ← Django API
+              │  │   8000      │  │
+              │  └──────┬──────┘  │
+              │         │         │
+              │  ┌──────▼──────┐  │
+              │  │ PostgreSQL  │  │  ← Database
+              │  │    5432     │  │
+              │  └─────────────┘  │
+              └───────────────────┘
 ```
 
 ---
 
-## Demo Credentials
+## 🚀 Quick Start (Local Dev)
 
+### Prerequisites
+- Docker + Docker Compose
+- Python 3.12+ (optional, for local backend dev)
+- Node 20+ (optional, for local frontend dev)
+
+### 1. Clone the repo
+```bash
+git clone https://github.com/AhmadMughal-DS/Hospital.git
+cd Hospital
+```
+
+### 2. Start with Docker Compose (Recommended)
+```bash
+# Copy env template (edit values if needed)
+cp .env.example backend-django/.env
+
+# Start all services
+docker-compose up -d
+
+# Seed test data (first run)
+docker-compose exec backend python manage.py seed_hms
+```
+
+Access:
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000/api/v1/
+- **Admin Panel**: http://localhost:8000/admin/
+
+### 3. Default Credentials
 | Role | Email | Password |
-|---|---|---|
+|------|-------|----------|
 | Admin | admin@hms.ae | Admin@1234 |
-| Doctor | sara.khan@hms.ae | Doctor@1234 |
-| Pharmacist | pharma@hms.ae | Pharma@1234 |
-| Patient | patient@hms.ae | Patient@1234 |
+| Patient | ahmad@gmail.com | Ahmad@857 |
 
 ---
 
-## Module Overview
-
-### Patient Portal (`/patient`)
-- Registration with auto-generated Patient ID
-- Real-time appointment booking with doctor specialty filters
-- Multi-currency support (AED, SAR, EUR)
-- Medical records viewer (Prescriptions, Lab Reports, Visits)
-- Invoice history and payment status
-- Live OPD queue token system
-
-### Doctor Command Center (`/doctor`)
-- Today's appointment queue with real-time status updates
-- Patient list with visit history
-- E-Prescription writer (drugs, dosage, frequency, duration)
-- TeleHealth readiness indicator
-
-### Admin Control Center (`/admin`)
-- Full system KPI overview
-- Billing management (mark invoices paid, revenue summary)
-- Pharmacy inventory view
-- Queue control (Call Next Patient)
-- Appointment management
-
-### Pharmacy Management (`/pharmacy`)
-- Drug inventory with SKU, stock, price, expiry
-- Stock movement recording (IN/OUT/ADJUSTMENT/EXPIRED)
-- Low-stock alerts with threshold management
-- Expired drug detection
-
----
-
-## API Endpoints
-
-### Auth
-```
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-GET  /api/v1/auth/me
-POST /api/v1/auth/token/refresh/
-```
-
-### Doctors
-```
-GET  /api/v1/doctors/
-GET  /api/v1/doctors/<id>/
-GET  /api/v1/doctors/specialties/
-GET  /api/v1/doctors/me/
-```
-
-### Appointments
-```
-GET  /api/v1/appointments/
-POST /api/v1/appointments/
-GET  /api/v1/appointments/<id>/
-GET  /api/v1/appointments/today-queue/
-POST /api/v1/appointments/<id>/prescription/
-```
-
-### Pharmacy
-```
-GET  /api/v1/pharmacy/drugs/
-POST /api/v1/pharmacy/drugs/
-GET  /api/v1/pharmacy/stock-movements/
-POST /api/v1/pharmacy/stock-movements/
-GET  /api/v1/pharmacy/alerts/low-stock/
-```
-
-### Billing
-```
-GET  /api/v1/billing/invoices/
-POST /api/v1/billing/invoices/
-POST /api/v1/billing/invoices/<id>/pay/
-GET  /api/v1/billing/summary/
-```
-
-### Queue
-```
-GET  /api/v1/queue/tokens/
-POST /api/v1/queue/tokens/
-GET  /api/v1/queue/tokens/current/
-POST /api/v1/queue/tokens/call-next/
-```
-
----
-
-## RBAC Roles
-
-| Role | Permissions |
-|---|---|
-| ADMIN | Full access to all modules |
-| DOCTOR | Own appointments, prescriptions, today's queue |
-| PHARMACIST | Drug inventory, stock movements, alerts |
-| PATIENT | Own appointments, own records, own invoices |
-
----
-
-## Compliance & Security
-- JWT access tokens (8h) with refresh (7d)
-- Role-Based Access Control (RBAC) on every endpoint
-- GDPR-ready database structure (consent tracking on PatientProfile)
-- Data sovereignty fields (patient_id opaque to external systems)
-- CORS configured (restrict in production)
-
----
-
-## Localization
-- **English**: Full support (default)
-- **Arabic (RTL)**: Full UI mirror via `dir="rtl"`, language toggle in sidebar
-- **Currencies**: AED (UAE Dirham), SAR (Saudi Riyal), EUR (Euro)
-- **Timezones**: Per-user timezone stored (Asia/Dubai default)
-
----
-
-## Docker Compose
+## 🐳 Docker Deployment (Production)
 
 ```bash
-docker compose up --build
+# 1. Set up environment variables
+cp .env.example .env
+nano .env  # Fill in production values
+
+# 2. Build and start
+docker-compose -f docker-compose.prod.yml up -d
+
+# 3. Check status
+docker-compose -f docker-compose.prod.yml ps
 ```
 
-Services:
-- `backend` → http://localhost:8000
-- `frontend` → http://localhost:5173
+---
+
+## ⚙️ CI/CD Pipeline
+
+The pipeline runs automatically on `git push` to `main`:
+
+```
+┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Stage 1 │───▶│   Stage 2    │───▶│   Stage 3    │───▶│   Stage 4    │
+│   Lint   │    │ Build & Test │    │ Push DockerHub│    │ Deploy to VM │
+│          │    │              │    │              │    │              │
+│ Dockerfile│   │ Both images  │    │ amd64+arm64  │    │ docker-compose│
+│ Python   │    │ Integration  │    │ sha+latest   │    │ SSH deploy   │
+│ Node build│   │ tests        │    │ tags         │    │ health check │
+└──────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+```
+
+### Triggers
+- `push` to `master` → Full pipeline (Lint + Build + Push + Deploy)
+- `push` to `develop` → Lint + Build only
+- `pull_request` to `master` → Lint + Build only
+
+---
+
+## 🔐 GitHub Secrets Required
+
+Go to your repo → **Settings → Secrets and variables → Actions** and add:
+
+| Secret | Description | Example |
+|--------|-------------|---------|
+| `DOCKER_USERNAME` | DockerHub username | `ahmadmughal` |
+| `DOCKER_PAT` | DockerHub access token | `dckr_pat_...` |
+| `VM_IP` | Production server IP | `192.168.1.100` |
+| `VM_USERNAME` | SSH username | `ubuntu` |
+| `VM_PASSWORD` | SSH password | `your-password` |
+| `SECRET_KEY` | Django secret key | 50+ char random string |
+| `DB_NAME` | Database name | `hms_db` |
+| `DB_USER` | Database user | `hms_user` |
+| `DB_PASSWORD` | Database password | Strong password |
+| `ALLOWED_HOSTS` | Django allowed hosts | `yourdomain.com` |
+| `CORS_ALLOWED_ORIGINS` | CORS origins | `https://yourdomain.com` |
+| `EMAIL_HOST_USER` | SMTP email | `you@gmail.com` |
+| `EMAIL_HOST_PASSWORD` | SMTP password | Gmail App Password |
+| `STRIPE_SECRET_KEY` | Stripe secret | `sk_live_...` |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe pub key | `pk_live_...` |
+| `VITE_DJANGO_API_BASE` | Backend URL for frontend | `https://api.yourdomain.com` |
+| `VITE_QUEUE_API_BASE` | Queue API URL | `https://api.yourdomain.com` |
+
+---
+
+## 📡 API Overview
+
+Base URL: `http://localhost:8000/api/v1/`
+
+| Module | Endpoint | Description |
+|--------|----------|-------------|
+| Auth | `POST /auth/login/` | JWT login |
+| Auth | `POST /auth/register/` | Register patient |
+| Auth | `GET/PATCH /auth/me` | Profile |
+| Auth | `GET /auth/patients/` | All patients (admin/doctor) |
+| Doctors | `GET /doctors/` | Doctor list |
+| Doctors | `GET /doctors/admin-all/` | Admin doctor list |
+| Appointments | `GET/POST /appointments/` | Book & list |
+| Appointments | `POST /<id>/rate/` | Rate doctor |
+| Appointments | `GET /notifications/` | In-app notifications |
+| Pharmacy | `GET /pharmacy/drugs/` | Drug inventory |
+| Billing | `GET /billing/invoices/` | Invoice list |
+| Billing | `GET /billing/invoices/<id>/pdf/` | PDF download |
+| Billing | `GET /billing/summary/` | Revenue stats |
+| Queue | `GET /queue/tokens/current` | Live queue |
+
+---
+
+## 📁 Project Structure
+
+```
+Hospital/
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml          # GitHub Actions pipeline
+├── backend-django/
+│   ├── apps/
+│   │   ├── accounts/          # Users, Patient profiles
+│   │   ├── appointments/      # Booking, Prescriptions, Ratings
+│   │   ├── billing/           # Invoices, Stripe, PDF
+│   │   ├── doctors/           # Doctor profiles, Specialties
+│   │   ├── pharmacy/          # Drugs, Stock, Dispensing
+│   │   └── queue_mgmt/        # Queue tokens
+│   ├── config/                # Django settings, URLs
+│   ├── Dockerfile             # Multi-stage production build
+│   └── requirements.txt
+├── frontend-web/
+│   ├── src/
+│   │   ├── components/        # Reusable UI (Sidebar, Modals, etc.)
+│   │   ├── pages/             # Dashboard pages per role
+│   │   └── hooks/             # Custom React hooks
+│   ├── Dockerfile             # Node build → Nginx serve
+│   └── nginx.conf             # SPA routing + security headers
+├── docker-compose.yml         # Local development
+├── docker-compose.prod.yml    # Production deployment
+├── .env.example               # Environment template
+└── README.md
+```
+
+---
+
+## 📄 License
+
+MIT License — © 2026 Ahmad Mughal

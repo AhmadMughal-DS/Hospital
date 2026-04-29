@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────────────────
+# MediCore HMS — Production Docker Compose
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-hms_db}
+      POSTGRES_USER:     ${DB_USER:-hms_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U ${DB_USER:-hms_user} -d ${DB_NAME:-hms_db}"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    networks:
+      - hms-net
+
+  # ── Django Backend (Gunicorn) ─────────────────────────────────────
+  backend:
+    image: ${DOCKER_USERNAME}/hms-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG:       "0"
+      SECRET_KEY:  ${SECRET_KEY}
+      DB_HOST:     db
+      DB_PORT:     "5432"
+      DB_NAME:     ${DB_NAME:-hms_db}
+      DB_USER:     ${DB_USER:-hms_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      ALLOWED_HOSTS:    ${ALLOWED_HOSTS:-*}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost}
+      EMAIL_HOST:       ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT:       ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER:  ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      STRIPE_SECRET_KEY:      ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn config.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers 4
+               --threads 2
+               --timeout 120
+               --access-logfile -
+               --error-logfile -"
+    healthcheck:
+      test:     ["CMD", "curl", "-f", "http://localhost:8000/api/v1/auth/health/ || exit 1"]
+      interval: 30s
+      timeout:  10s
+      retries:  5
+    networks:
+      - hms-net
+
+  # ── React Frontend (Nginx) ────────────────────────────────────────
+  frontend:
+    image: ${DOCKER_USERNAME}/hms-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test:     ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+    networks:
+      - hms-net
+
+networks:
+  hms-net:
+    driver: bridge
+
+volumes:
+  postgres_data:

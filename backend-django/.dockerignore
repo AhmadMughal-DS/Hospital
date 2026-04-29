@@ -1,0 +1,27 @@
+.git
+.gitignore
+.github
+*.md
+docs/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Django dev
+db.sqlite3
+media/
+staticfiles/
+*.log
+
+# Env
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db

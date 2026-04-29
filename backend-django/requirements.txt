@@ -1,9 +1,24 @@
+# ── Core Framework ────────────────────────────────────────────────
 Django==5.1.1
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
 django-cors-headers==4.4.0
 django-filter==24.3
-Pillow
+
+# ── Database ──────────────────────────────────────────────────────
 psycopg[binary]
+
+# ── Storage & Media ───────────────────────────────────────────────
+Pillow
+
+# ── Configuration ─────────────────────────────────────────────────
 python-dotenv==1.0.1
+
+# ── Payments ──────────────────────────────────────────────────────
 stripe>=9.0.0
+
+# ── PDF Generation ────────────────────────────────────────────────
+reportlab>=4.0.0
+
+# ── Production Server ─────────────────────────────────────────────
+gunicorn>=22.0.0

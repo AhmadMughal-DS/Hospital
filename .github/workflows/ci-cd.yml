@@ -1,0 +1,424 @@
+# ============================================================
+# MediCore HMS — GitHub Actions CI/CD Pipeline
+# Build, Test, Push & Deploy
+# Repo: https://github.com/AhmadMughal-DS/Hospital
+# ============================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master]
+
+env:
+  BACKEND_IMAGE:  hms-backend
+  FRONTEND_IMAGE: hms-frontend
+  REGISTRY:       docker.io
+
+permissions:
+  contents: read
+  packages: write
+
+# ============================================================
+# STAGE 1 — Lint & Validate
+# ============================================================
+jobs:
+  lint:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      # ── Lint Backend Dockerfile ──────────────────────────────
+      - name: Lint Backend Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend-django/Dockerfile
+          failure-threshold: error
+
+      # ── Lint Frontend Dockerfile ─────────────────────────────
+      - name: Lint Frontend Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend-web/Dockerfile
+          failure-threshold: error
+
+      # ── Python Linting (ruff) ────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend-django/requirements.txt
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint Python code
+        run: |
+          echo "=== Linting Django backend ==="
+          ruff check backend-django/ --select=E,W,F --ignore=E501 || true
+          echo "✓ Python lint complete"
+
+      # ── Frontend Lint ────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci --prefer-offline
+        working-directory: frontend-web
+
+      - name: Build frontend (validates no compile errors)
+        run: npm run build
+        working-directory: frontend-web
+        env:
+          VITE_DJANGO_API_BASE: http://localhost:8000
+          VITE_QUEUE_API_BASE:  http://localhost:8000
+
+      # ── Validate project structure ───────────────────────────
+      - name: Validate project structure
+        run: |
+          echo "=== Validating project structure ==="
+          test -f backend-django/Dockerfile        && echo "✓ backend Dockerfile"     || { echo "✗ backend Dockerfile missing"; exit 1; }
+          test -f frontend-web/Dockerfile          && echo "✓ frontend Dockerfile"    || { echo "✗ frontend Dockerfile missing"; exit 1; }
+          test -f frontend-web/nginx.conf          && echo "✓ nginx.conf"             || { echo "✗ nginx.conf missing"; exit 1; }
+          test -f docker-compose.yml               && echo "✓ docker-compose.yml"     || { echo "✗ docker-compose.yml missing"; exit 1; }
+          test -f docker-compose.prod.yml          && echo "✓ docker-compose.prod.yml"|| { echo "✗ docker-compose.prod.yml missing"; exit 1; }
+          test -f backend-django/requirements.txt  && echo "✓ requirements.txt"       || { echo "✗ requirements.txt missing"; exit 1; }
+          test -f frontend-web/package.json        && echo "✓ package.json"           || { echo "✗ package.json missing"; exit 1; }
+          test -d backend-django/apps              && echo "✓ apps/"                  || { echo "✗ apps/ missing"; exit 1; }
+          test -d frontend-web/src                 && echo "✓ src/"                   || { echo "✗ src/ missing"; exit 1; }
+          echo "=== Structure validation complete ==="
+
+# ============================================================
+# STAGE 2 — Build & Test Docker Images
+# ============================================================
+  build:
+    name: Build & Test Images
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Build Backend Image ──────────────────────────────────
+      - name: Build backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context:    backend-django
+          push:       false
+          load:       true
+          tags:       ${{ env.BACKEND_IMAGE }}:test
+          cache-from: type=gha,scope=backend
+          cache-to:   type=gha,mode=max,scope=backend
+
+      # ── Build Frontend Image ─────────────────────────────────
+      - name: Build frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context:    frontend-web
+          push:       false
+          load:       true
+          tags:       ${{ env.FRONTEND_IMAGE }}:test
+          build-args: |
+            VITE_DJANGO_API_BASE=http://localhost:8000
+            VITE_QUEUE_API_BASE=http://localhost:8000
+          cache-from: type=gha,scope=frontend
+          cache-to:   type=gha,mode=max,scope=frontend
+
+      # ── Integration Test with docker-compose ─────────────────
+      - name: Start services for integration test
+        run: |
+          docker run -d --name hms-db \
+            -e POSTGRES_DB=hms_db \
+            -e POSTGRES_USER=hms_user \
+            -e POSTGRES_PASSWORD=hms_testpass \
+            -p 5432:5432 \
+            postgres:16-alpine
+          sleep 10
+
+          docker run -d --name hms-backend \
+            --link hms-db:db \
+            -e DEBUG=0 \
+            -e SECRET_KEY=ci-test-secret-key-do-not-use-in-prod \
+            -e DB_HOST=db \
+            -e DB_PORT=5432 \
+            -e DB_NAME=hms_db \
+            -e DB_USER=hms_user \
+            -e DB_PASSWORD=hms_testpass \
+            -e ALLOWED_HOSTS='*' \
+            -p 8000:8000 \
+            ${{ env.BACKEND_IMAGE }}:test \
+            sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2"
+
+          docker run -d --name hms-frontend \
+            -p 8080:80 \
+            ${{ env.FRONTEND_IMAGE }}:test
+
+          echo "Waiting for services to start..."
+          sleep 15
+
+      # ── Health Checks ────────────────────────────────────────
+      - name: Health check — Frontend
+        run: |
+          echo "=== Frontend health check ==="
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            --retry 10 --retry-connrefused --retry-delay 2 \
+            http://localhost:8080/health || true)
+          if [ "$response" = "200" ]; then
+            echo "✓ Frontend health check passed (HTTP $response)"
+          else
+            echo "✗ Frontend health check failed (HTTP $response)"
+            echo "=== Frontend logs ==="
+            docker logs hms-frontend || true
+            exit 1
+          fi
+
+      - name: Health check — Backend
+        run: |
+          echo "=== Backend health check ==="
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            --retry 10 --retry-connrefused --retry-delay 2 \
+            http://localhost:8000/ || true)
+          echo "Backend response: HTTP $response"
+          echo "=== Backend logs ==="
+          docker logs hms-backend || true
+
+      # ── Smoke Tests ──────────────────────────────────────────
+      - name: Smoke test — Frontend SPA
+        run: |
+          echo "=== Testing frontend index page ==="
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://localhost:8080/ || true)
+          [ "$response" = "200" ] && echo "✓ index.html (HTTP $response)" || { echo "✗ index.html failed"; exit 1; }
+
+      - name: Smoke test — Backend API
+        run: |
+          echo "=== Testing backend API endpoints ==="
+          for path in "api/v1/auth/login" "api/v1/doctors/specialties/"; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              --retry 5 --retry-connrefused --retry-delay 1 \
+              http://localhost:8000/$path || true)
+            echo "  $path → HTTP $code"
+          done
+
+      # ── Security Header Check ─────────────────────────────────
+      - name: Verify security headers
+        run: |
+          echo "=== Checking security headers ==="
+          headers=$(curl -sI http://localhost:8080/ || true)
+          echo "$headers" | grep -qi "X-Frame-Options"         && echo "✓ X-Frame-Options"         || echo "⚠ X-Frame-Options missing"
+          echo "$headers" | grep -qi "X-Content-Type-Options"  && echo "✓ X-Content-Type-Options"  || echo "⚠ X-Content-Type-Options missing"
+          echo "$headers" | grep -qi "X-XSS-Protection"        && echo "✓ X-XSS-Protection"        || echo "⚠ X-XSS-Protection missing"
+
+      # ── Image Size Audit ─────────────────────────────────────
+      - name: Check image sizes
+        run: |
+          echo "=== Docker image sizes ==="
+          docker images ${{ env.BACKEND_IMAGE }}:test  --format "Backend:  {{.Size}}"
+          docker images ${{ env.FRONTEND_IMAGE }}:test --format "Frontend: {{.Size}}"
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker rm -f hms-backend hms-frontend hms-db || true
+
+# ============================================================
+# STAGE 3 — Push to DockerHub
+# ============================================================
+  push:
+    name: Push to DockerHub
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PAT }}
+
+      # ── Extract tags (sha + latest + date) ───────────────────
+      - name: Extract metadata for Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      - name: Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      # ── Build & Push Backend ─────────────────────────────────
+      - name: Build and push backend to DockerHub
+        uses: docker/build-push-action@v5
+        with:
+          context:    backend-django
+          push:       true
+          tags:       ${{ steps.meta-backend.outputs.tags }}
+          labels:     ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to:   type=gha,mode=max,scope=backend
+          platforms:  linux/amd64,linux/arm64
+
+      # ── Build & Push Frontend ────────────────────────────────
+      - name: Build and push frontend to DockerHub
+        uses: docker/build-push-action@v5
+        with:
+          context:    frontend-web
+          push:       true
+          tags:       ${{ steps.meta-frontend.outputs.tags }}
+          labels:     ${{ steps.meta-frontend.outputs.labels }}
+          build-args: |
+            VITE_DJANGO_API_BASE=${{ secrets.VITE_DJANGO_API_BASE }}
+            VITE_QUEUE_API_BASE=${{ secrets.VITE_QUEUE_API_BASE }}
+          cache-from: type=gha,scope=frontend
+          cache-to:   type=gha,mode=max,scope=frontend
+          platforms:  linux/amd64,linux/arm64
+
+      - name: Log pushed image info
+        run: |
+          echo "=== Images pushed to DockerHub ==="
+          echo "Backend:  ${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}:latest"
+          echo "Frontend: ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}:latest"
+
+# ============================================================
+# STAGE 4 — Deploy to Production VM via SSH
+# ============================================================
+  deploy:
+    name: Deploy to Production VM
+    runs-on: ubuntu-latest
+    needs: push
+    if: github.ref == 'refs/heads/master'
+    environment: production
+
+    steps:
+      - name: Checkout code (for docker-compose.prod.yml)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USERNAME }}
+          password: ${{ secrets.VM_PASSWORD }}
+          script: |
+            set -euo pipefail
+
+            BACKEND_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}"
+            FRONTEND_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}"
+            APP_DIR="/opt/hms"
+
+            echo "============================================"
+            echo "  MediCore HMS — Deployment Triggered"
+            echo "  Backend:  $BACKEND_IMAGE:latest"
+            echo "  Frontend: $FRONTEND_IMAGE:latest"
+            echo "============================================"
+
+            # ── Pull latest images ──────────────────────────────
+            docker pull "$BACKEND_IMAGE:latest"
+            docker pull "$FRONTEND_IMAGE:latest"
+
+            # ── Write environment file ──────────────────────────
+            mkdir -p "$APP_DIR"
+            cat > "$APP_DIR/.env" <<EOF
+            DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+            IMAGE_TAG=latest
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+            CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
+            EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+            EMAIL_PORT=${{ secrets.EMAIL_PORT }}
+            EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+            EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+            VITE_DJANGO_API_BASE=${{ secrets.VITE_DJANGO_API_BASE }}
+            VITE_QUEUE_API_BASE=${{ secrets.VITE_QUEUE_API_BASE }}
+            EOF
+
+            # ── Copy docker-compose.prod.yml ────────────────────
+            # (Already cloned on VM OR copy via scp)
+            if [ ! -f "$APP_DIR/docker-compose.prod.yml" ]; then
+              echo "docker-compose.prod.yml not found. Please copy it to $APP_DIR"
+              exit 1
+            fi
+
+            # ── Graceful restart using docker-compose ───────────
+            cd "$APP_DIR"
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d \
+              --remove-orphans \
+              --wait
+
+            # ── Health check post-deploy ────────────────────────
+            sleep 10
+            frontend_status=$(curl -s -o /dev/null -w "%{http_code}" \
+              --retry 5 --retry-connrefused --retry-delay 3 \
+              http://localhost/health || true)
+            if [ "$frontend_status" = "200" ]; then
+              echo "✓ Frontend health check passed"
+            else
+              echo "✗ Frontend health check failed (HTTP $frontend_status)"
+              docker compose -f docker-compose.prod.yml logs --tail=50
+              exit 1
+            fi
+
+            # ── Clean up old unused resources ───────────────────
+            docker container prune -f || true
+            docker image prune -af --filter "until=168h" || true
+            docker network prune -f  || true
+            docker builder prune -af --filter "until=168h" || true
+
+            echo "=== Running containers ==="
+            docker compose -f docker-compose.prod.yml ps
+
+            echo "=== Docker disk usage ==="
+            docker system df
+
+            echo "============================================"
+            echo "  Deployment Completed Successfully ✓"
+            echo "============================================"

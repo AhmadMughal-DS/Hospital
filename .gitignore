@@ -1,23 +1,62 @@
-# Python
+# ─────────────────────────────────────────────────────────────────
+# MediCore HMS — .gitignore
+# ─────────────────────────────────────────────────────────────────
+
+# ── Environment & Secrets ────────────────────────────────────────
+.env
+*.env
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.egg
 *.egg-info/
+dist/
+build/
+.eggs/
 .venv/
 venv/
+ENV/
 
-# Django
+# ── Django ───────────────────────────────────────────────────────
 backend-django/db.sqlite3
 backend-django/media/
 backend-django/staticfiles/
+backend-django/*.log
+backend-django/.pytest_cache/
 
-# Node
+# ── Node.js / React ──────────────────────────────────────────────
 frontend-web/node_modules/
 frontend-web/dist/
+frontend-web/.npm
+frontend-web/vite.config.js.timestamp-*
 
-# Env
-.env
-*.env
+# ── Docker ───────────────────────────────────────────────────────
+*.override.yml
+docker-compose.override.yml
 
-# OS
+# ── OS ───────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Misc ─────────────────────────────────────────────────────────
+prompt.txt
+run-commands.txt

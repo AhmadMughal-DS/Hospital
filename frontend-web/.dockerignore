@@ -1,0 +1,20 @@
+.git
+.gitignore
+.github
+*.md
+
+# Node
+node_modules/
+dist/
+.npm
+
+# Env
+.env
+*.env
+
+# Dev config
+vite.config.js.timestamp-*
+
+# OS
+.DS_Store
+Thumbs.db
